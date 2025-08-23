@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.python-version
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Environments & secrets
+.env
+.env.*
+.envrc
+
+# OS/Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Node (if any tools generate these)
+node_modules/
+
+# Supabase local artifacts
+**/supabase/signing_keys.json
+**/supabase/.temp/**
+
+# Docker
+**/.docker/**
+
+
