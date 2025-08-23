@@ -1,0 +1,35 @@
+{
+  "title": "Turing Agents - Queue & Worker",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Queue Depth",
+      "targets": [{"expr": "queue_depth", "legendFormat": "{{org_id}}"}]
+    },
+    {
+      "type": "graph",
+      "title": "Worker Messages",
+      "targets": [{"expr": "sum by (status,type) (worker_message_total)"}]
+    },
+    {
+      "type": "graph",
+      "title": "Retries & DLQ",
+      "targets": [
+        {"expr": "sum by (type) (worker_retry_total)"},
+        {"expr": "sum by (type) (worker_dlq_total)"},
+        {"expr": "sum by (type) (poison_quarantined_total)"}
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Process Latency P50",
+      "targets": [{"expr": "histogram_quantile(0.5, sum(rate(worker_process_latency_seconds_bucket[5m])) by (le))"}]
+    }
+  ],
+  "editable": true,
+  "schemaVersion": 36,
+  "version": 1
+}
+
+

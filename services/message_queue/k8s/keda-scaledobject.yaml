@@ -1,0 +1,32 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ta-worker-scaler
+spec:
+  scaleTargetRef:
+    name: ta-worker
+  pollingInterval: 15
+  cooldownPeriod: 60
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        hostFromEnv: RABBITMQ_URL
+        queueName: org.demo-org.requests.q
+        queueLength: "100"
+      authenticationRef:
+        name: ta-keda-trigger-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: ta-keda-trigger-auth
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: ta-secrets
+      key: RABBITMQ_URL
+
+

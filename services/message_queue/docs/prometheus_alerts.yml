@@ -1,0 +1,29 @@
+groups:
+  - name: turing-agents-alerts
+    rules:
+      - alert: HighQueueDepth
+        expr: queue_depth > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue depth high"
+          description: "Queue depth is >1000 for 2 minutes"
+      - alert: DLQSpiking
+        expr: increase(worker_dlq_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DLQ spiking"
+          description: ">10 DLQ messages in 5 minutes"
+      - alert: PoisonQuarantine
+        expr: increase(poison_quarantined_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Poison messages quarantined"
+          description: "One or more messages quarantined in last 10 minutes"
+
+

@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: pip install uv
+      - name: Sync deps
+        run: uv venv && . .venv/bin/activate && uv sync
+      - name: Run tests
+        run: . .venv/bin/activate && pytest -q
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3.12-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: pip install uv
+      - name: Sync deps
+        run: uv venv && . .venv/bin/activate && uv sync
+      - name: E2E - init topology
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          ORG_IDS: demo-org
+        run: . .venv/bin/activate && uv run python -m scripts.init_topology
+      - name: E2E - start coordinator
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          AGENT_IDS: demo-agent
+        run: . .venv/bin/activate && nohup uv run python -m scripts.coordinator > .coordinator.log 2>&1 &
+      - name: E2E - start worker
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          ORG_ID: demo-org
+          AGENT_ID: demo-agent
+        run: . .venv/bin/activate && nohup uv run python -m scripts.worker > .worker.log 2>&1 &
+      - name: E2E - publish message
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          ORG_ID: demo-org
+          PRIORITY: 0
+          TYPE: agent_message
+        run: . .venv/bin/activate && uv run python -m scripts.producer
+      - name: E2E - assert coordinator output
+        run: |
+          sleep 2
+          cat .coordinator.log
+          grep -q "\[demo-agent response\]" .coordinator.log
+
+  e2e-supabase:
+    needs: [test]
+    runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3.12-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: pip install uv
+      - name: Sync deps
+        run: uv venv && . .venv/bin/activate && uv sync
+      - name: Install Supabase CLI
+        run: |
+          curl -L https://github.com/supabase/cli/releases/download/v2.34.3/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          mkdir -p $HOME/.local/bin
+          tar -xzf /tmp/supabase.tgz -C $HOME/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Start local Supabase
+        run: |
+          supabase start | tee supabase.out
+          echo "SUPABASE_URL=$(grep -oE 'API URL: (.*)' supabase.out | awk '{print $3}')" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(grep -oE 'service_role key: (.*)' supabase.out | sed 's/service_role key: //')" >> $GITHUB_ENV
+      - name: E2E (Supabase) - init topology
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          ORG_IDS: demo-org
+        run: . .venv/bin/activate && uv run python -m scripts.init_topology
+      - name: E2E (Supabase) - start coordinator
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          AGENT_IDS: demo-agent
+        run: . .venv/bin/activate && nohup uv run python -m scripts.coordinator > .coordinator.log 2>&1 &
+      - name: E2E (Supabase) - start worker
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          ORG_ID: demo-org
+          AGENT_ID: demo-agent
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+        run: . .venv/bin/activate && nohup uv run python -m scripts.worker > .worker.log 2>&1 &
+      - name: E2E (Supabase) - publish message
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
+          ORG_ID: demo-org
+          PRIORITY: 0
+          TYPE: agent_message
+        run: . .venv/bin/activate && uv run python -m scripts.producer
+      - name: E2E (Supabase) - assert audit events exist
+        env:
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          . .venv/bin/activate
+          uv run python - <<'PY'
+          import os, json
+          from supabase import create_client
+          url=os.environ['SUPABASE_URL']; key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
+          client=create_client(url,key)
+          res=(client.table('message_events').select('event_type').order('id', desc=True).limit(5).execute())
+          data=res.data or []
+          print(json.dumps(data))
+          assert any(e['event_type'] in ('created','enqueued') for e in data), 'No audit events found'
+          PY
+
+

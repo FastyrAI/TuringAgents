@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ta-worker
+  labels:
+    app: ta-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ta-worker
+  template:
+    metadata:
+      labels:
+        app: ta-worker
+    spec:
+      containers:
+        - name: worker
+          image: turing-agents/worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ta-secrets
+                  key: RABBITMQ_URL
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ta-secrets
+                  key: SUPABASE_URL
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ta-secrets
+                  key: SUPABASE_SERVICE_ROLE_KEY
+            - name: ORG_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AGENT_ID
+              value: demo-agent
+            - name: METRICS_PORT
+              value: "9000"
+          ports:
+            - name: metrics
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ta-worker-metrics
+  labels:
+    app: ta-worker
+spec:
+  selector:
+    app: ta-worker
+  ports:
+    - name: metrics
+      port: 9000
+      targetPort: metrics
+
+

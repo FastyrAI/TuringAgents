@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: ta_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  message_queue:
+    build:
+      context: ./services/message_queue
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=development
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/%2F
+      - METRICS_PORT=9000
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:54321}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-dev-service-role-key}
+    depends_on:
+      - rabbitmq
+    ports:
+      - "9000:9000"
+
+
