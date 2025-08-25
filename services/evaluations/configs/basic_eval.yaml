@@ -1,34 +1,40 @@
-# Basic evaluation configuration for quick testing
+# Basic agent evaluation configuration for quick testing
 benchmarks:
-  - name: mmlu
+  - name: agentbench
     enabled: true
-    num_samples: 1000  # Use subset for faster evaluation
-    subjects: ["abstract_algebra", "anatomy", "astronomy"]  # Sample subjects
-  - name: hellaswag
+    environments: ["os", "db"]  # Start with simpler environments
+    num_samples: 50
+  
+  - name: toolbench
     enabled: true
-    num_samples: 500
-  - name: gsm8k
-    enabled: true
+    categories: ["search", "calculator"]
     num_samples: 100
+  
+  - name: swe_bench
+    enabled: true
+    difficulty: ["easy"]
+    num_samples: 25
 
 evaluation:
-  batch_size: 8
-  max_length: 2048
-  temperature: 0.0
-  top_p: 1.0
-  do_sample: false
-  num_workers: 2
+  parallel_workers: 2
+  timeout_per_task: 300  # 5 minutes per task
+  max_retries: 2
+  save_trajectories: true
 
-model:
-  # Model configuration
-  device: "auto"  # auto, cpu, cuda
-  dtype: "auto"   # auto, float16, float32, bfloat16
-  trust_remote_code: false
-  load_in_8bit: false
-  load_in_4bit: false
+agent:
+  # Agent configuration will be loaded from separate agent config
+  timeout: 60  # seconds per action
+  max_iterations: 20
+  enable_logging: true
+
+safety:
+  enable_content_filter: true
+  enable_safety_classifier: false  # Disable for basic eval
+  max_harmful_outputs: 0
 
 reporting:
   formats: ["json", "html"]
+  include_trajectories: true
   include_examples: true
   num_examples: 10
   output_dir: "./results"
@@ -36,4 +42,4 @@ reporting:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "evaluation.log"
+  file: "agent_evaluation.log"

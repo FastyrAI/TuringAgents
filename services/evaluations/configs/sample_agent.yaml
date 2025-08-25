@@ -1,0 +1,69 @@
+# Sample agent configuration
+agent:
+  name: "SampleToolUsingAgent"
+  type: "tool_using"  # tool_using, code_generating, web_navigating, planning, etc.
+  description: "A sample agent that can use tools and perform multi-step reasoning"
+  
+  # Agent initialization
+  class_path: "my_agents.ToolUsingAgent"
+  init_params:
+    model: "gpt-4-turbo"
+    temperature: 0.1
+    max_tokens: 4096
+    system_prompt: |
+      You are a helpful AI agent that can use tools to complete tasks.
+      Always think step by step and use the appropriate tools when needed.
+      Be precise and accurate in your responses.
+  
+  # Available tools
+  tools:
+    - name: "web_search"
+      description: "Search the web for information"
+      config: 
+        api_key: "${SEARCH_API_KEY}"
+        max_results: 10
+    
+    - name: "calculator"
+      description: "Perform mathematical calculations"
+      config:
+        precision: 10
+    
+    - name: "code_executor"
+      description: "Execute Python code in a sandboxed environment"
+      config:
+        timeout: 30
+        allowed_imports: ["math", "numpy", "pandas", "matplotlib"]
+    
+    - name: "file_manager"
+      description: "Read and write files"
+      config:
+        base_directory: "/tmp/agent_workspace"
+        max_file_size: "10MB"
+    
+    - name: "database_query"
+      description: "Query databases"
+      config:
+        connection_string: "${DATABASE_URL}"
+        timeout: 60
+  
+  # Safety and constraints
+  safety:
+    content_filter: true
+    max_iterations: 50
+    timeout: 300  # seconds
+    allowed_domains: ["*"]  # or specify specific domains
+    blocked_commands: ["rm -rf", "sudo", "chmod +x"]
+  
+  # Logging and monitoring
+  logging:
+    level: "INFO"
+    log_actions: true
+    log_thoughts: true
+    log_tool_calls: true
+  
+  # Performance settings
+  performance:
+    max_concurrent_tools: 3
+    cache_tool_results: true
+    retry_failed_tools: true
+    max_retries: 2
