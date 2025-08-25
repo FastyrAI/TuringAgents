@@ -1,0 +1,39 @@
+# Basic evaluation configuration for quick testing
+benchmarks:
+  - name: mmlu
+    enabled: true
+    num_samples: 1000  # Use subset for faster evaluation
+    subjects: ["abstract_algebra", "anatomy", "astronomy"]  # Sample subjects
+  - name: hellaswag
+    enabled: true
+    num_samples: 500
+  - name: gsm8k
+    enabled: true
+    num_samples: 100
+
+evaluation:
+  batch_size: 8
+  max_length: 2048
+  temperature: 0.0
+  top_p: 1.0
+  do_sample: false
+  num_workers: 2
+
+model:
+  # Model configuration
+  device: "auto"  # auto, cpu, cuda
+  dtype: "auto"   # auto, float16, float32, bfloat16
+  trust_remote_code: false
+  load_in_8bit: false
+  load_in_4bit: false
+
+reporting:
+  formats: ["json", "html"]
+  include_examples: true
+  num_examples: 10
+  output_dir: "./results"
+  
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "evaluation.log"

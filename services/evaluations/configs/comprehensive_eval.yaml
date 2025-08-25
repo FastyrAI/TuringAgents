@@ -1,0 +1,78 @@
+# Comprehensive evaluation configuration for full assessment
+benchmarks:
+  # Language Understanding
+  - name: glue
+    enabled: true
+    tasks: ["sst2", "mrpc", "qqp", "mnli", "qnli", "rte", "wnli"]
+  - name: superglue
+    enabled: true
+    tasks: ["boolq", "cb", "copa", "multirc", "record", "rte", "wic", "wsc"]
+  - name: mmlu
+    enabled: true
+    subjects: ["all"]  # or specify specific subjects
+  
+  # Reasoning
+  - name: hellaswag
+    enabled: true
+  - name: winogrande
+    enabled: true
+  - name: arc_challenge
+    enabled: true
+  - name: arc_easy
+    enabled: true
+  
+  # Math
+  - name: gsm8k
+    enabled: true
+  - name: math
+    enabled: true
+    subjects: ["algebra", "geometry", "probability", "number_theory"]
+  
+  # Code
+  - name: humaneval
+    enabled: true
+    language: "python"
+  - name: mbpp
+    enabled: true
+  
+  # Safety & Truthfulness
+  - name: truthfulqa
+    enabled: true
+    task: "mc"  # multiple choice
+
+evaluation:
+  batch_size: 4
+  max_length: 4096
+  temperature: 0.0
+  top_p: 1.0
+  do_sample: false
+  num_workers: 4
+  timeout: 300  # seconds per evaluation
+
+model:
+  device: "auto"
+  dtype: "auto"
+  trust_remote_code: false
+  load_in_8bit: false
+  load_in_4bit: false
+  max_memory: null
+
+reporting:
+  formats: ["json", "html", "csv"]
+  include_examples: true
+  num_examples: 20
+  generate_plots: true
+  output_dir: "./results"
+  
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "comprehensive_evaluation.log"
+
+# Advanced settings
+advanced:
+  cache_dir: "./cache"
+  use_cache: true
+  save_predictions: true
+  parallel_evaluation: true
+  error_handling: "continue"  # continue, stop, skip
