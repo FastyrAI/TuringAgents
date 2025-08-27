@@ -24,6 +24,10 @@ spec:
                 secretKeyRef:
                   name: ta-secrets
                   key: RABBITMQ_URL
+            - name: WORKER_PREFETCH
+              value: "32"
+            - name: WORKER_CONCURRENCY
+              value: "16"
             - name: SUPABASE_URL
               valueFrom:
                 secretKeyRef:

@@ -73,9 +73,27 @@ def get_supabase_client():
 
 
 class Settings(BaseModel):
-    """Typed configuration with sensible defaults.
+    """Typed configuration with sensible defaults for the message queue services.
 
-    Use this for centralized env validation when services start.
+    Why this exists:
+    - Centralize environment configuration and validation across scripts and libs
+    - Provide explicit, typed access to commonly used settings
+
+    How to use:
+    - Instantiate once per process and pass around, or import where needed
+    - Override values via environment variables
+
+    Examples:
+    - Configure worker concurrency and prefetch (throughput vs fairness):
+      ```bash
+      export WORKER_CONCURRENCY=16   # max in-flight messages per worker process
+      export WORKER_PREFETCH=32      # AMQP prefetch (QoS) per consumer
+      ```
+    - Enable TLS for RabbitMQ:
+      ```bash
+      export RABBITMQ_URL=amqps://user:pass@host:5671/vhost
+      export RABBITMQ_SSL_VERIFY=true
+      ```
     """
     environment: EnvName = ENVIRONMENT
     rabbitmq_url: str = RABBITMQ_URL
@@ -83,6 +101,7 @@ class Settings(BaseModel):
     supabase_service_role_key: str = SUPABASE_SERVICE_ROLE_KEY or ""
     metrics_port: int = int(os.getenv("METRICS_PORT", "9000"))
     prefetch_count: int = int(os.getenv("WORKER_PREFETCH", "10"))
+    worker_concurrency: int = int(os.getenv("WORKER_CONCURRENCY", "10"))
     idempotency_ttl_days: int = int(os.getenv("IDEMPOTENCY_TTL_DAYS", "30"))
     poison_threshold: int = int(os.getenv("POISON_THRESHOLD", "3"))
 

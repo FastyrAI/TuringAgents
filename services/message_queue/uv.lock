@@ -255,13 +255,13 @@ dependencies = [
     { name = "prometheus-client" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "sqlalchemy" },
+    { name = "sqlalchemy2-stubs" },
 ]
 
 [package.optional-dependencies]
 db = [
     { name = "asyncpg" },
-    { name = "sqlalchemy" },
-    { name = "sqlalchemy2-stubs" },
 ]
 
 [package.metadata]
@@ -276,8 +276,8 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.20.0" },
     { name = "pydantic", specifier = "==2.8.2" },
     { name = "python-dotenv", specifier = "==1.0.1" },
-    { name = "sqlalchemy", marker = "extra == 'db'", specifier = "==2.0.35" },
-    { name = "sqlalchemy2-stubs", marker = "extra == 'db'", specifier = "==0.0.2a38" },
+    { name = "sqlalchemy", specifier = "==2.0.35" },
+    { name = "sqlalchemy2-stubs", specifier = "==0.0.2a38" },
 ]
 
 [[package]]

@@ -94,6 +94,12 @@ Decision: Queue is concurrency-agnostic; agents self-serialize when needed. Org-
 Agents are responsible for enforcing any ordering/causality they require (e.g., awaiting responses, sequence numbers, local locks).
 Multiple agents within an org can work in parallel; workers may process messages from different agents simultaneously.
 No queue-enforced dependency tracking.
+
+Implementation knobs (M1.5):
+- Worker prefetch (AMQP QoS): `WORKER_PREFETCH` (default 10)
+- Worker in-flight handlers bound: `WORKER_CONCURRENCY` (default 10)
+- Effective concurrency ≈ `min(WORKER_PREFETCH, WORKER_CONCURRENCY)`
+- Best-effort ordering only; application/agent must serialize if required
 Example (agent-side serialization, optional):
  # Agent enforces its own sequenceclass Agent:    async def execute_task(self):        result1 = await self.queue_and_wait({"type": "model_call"})        result2 = await self.queue_and_wait({"type": "tool_call"})        result3 = await self.queue_and_wait({"type": "memory_save"})
 
