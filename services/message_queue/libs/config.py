@@ -85,6 +85,8 @@ class Settings(BaseModel):
     prefetch_count: int = int(os.getenv("WORKER_PREFETCH", "10"))
     idempotency_ttl_days: int = int(os.getenv("IDEMPOTENCY_TTL_DAYS", "30"))
     poison_threshold: int = int(os.getenv("POISON_THRESHOLD", "3"))
+    # DLQ retention in days for purge job
+    dlq_retention_days: int = int(os.getenv("DLQ_RETENTION_DAYS", "90"))
 
     # TLS/mTLS
     rabbitmq_ssl_ca_path: str = RABBITMQ_SSL_CA_PATH

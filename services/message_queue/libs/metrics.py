@@ -21,6 +21,12 @@ WORKER_RETRY_TOTAL = Counter(
 WORKER_DLQ_TOTAL = Counter(
     "worker_dlq_total", "Total messages sent to DLQ", ["type"]
 )
+DLQ_REPLAY_TOTAL = Counter(
+    "dlq_replay_total", "Total DLQ messages replayed", ["org_id"]
+)
+DLQ_PURGE_TOTAL = Counter(
+    "dlq_purge_total", "Total DLQ messages purged by retention", ["org_id"]
+)
 QUEUE_DEPTH = Gauge(
     "queue_depth", "Current queue depth for the org queue", ["org_id"]
 )
