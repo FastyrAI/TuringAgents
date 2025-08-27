@@ -26,12 +26,21 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    env:
+      RABBITMQ_CONNECT_ATTEMPTS: "24"
+      RABBITMQ_CONNECT_BASE_DELAY_MS: "500"
+      RABBITMQ_CONNECT_MAX_DELAY_MS: "3000"
     services:
       rabbitmq:
         image: rabbitmq:3.13-management
         ports:
           - 5672:5672
           - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -86,12 +95,21 @@ jobs:
   e2e-supabase:
     needs: [test]
     runs-on: ubuntu-latest
+    env:
+      RABBITMQ_CONNECT_ATTEMPTS: "24"
+      RABBITMQ_CONNECT_BASE_DELAY_MS: "500"
+      RABBITMQ_CONNECT_MAX_DELAY_MS: "3000"
     services:
       rabbitmq:
         image: rabbitmq:3.13-management
         ports:
           - 5672:5672
           - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
