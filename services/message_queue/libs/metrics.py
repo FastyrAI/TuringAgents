@@ -21,11 +21,28 @@ WORKER_RETRY_TOTAL = Counter(
 WORKER_DLQ_TOTAL = Counter(
     "worker_dlq_total", "Total messages sent to DLQ", ["type"]
 )
+DLQ_REPLAY_TOTAL = Counter(
+    "dlq_replay_total", "Total DLQ messages replayed", ["org_id"]
+)
+DLQ_PURGE_TOTAL = Counter(
+    "dlq_purge_total", "Total DLQ messages purged by retention", ["org_id"]
+)
 QUEUE_DEPTH = Gauge(
     "queue_depth", "Current queue depth for the org queue", ["org_id"]
 )
 POISON_QUARANTINED_TOTAL = Counter(
     "poison_quarantined_total", "Total messages quarantined as poison", ["type"]
+)
+
+# Response metrics (streaming + non-streaming)
+WORKER_RESPONSE_PUBLISHED_TOTAL = Counter(
+    "worker_response_published_total", "Total responses published by worker", ["type"]
+)
+STREAM_CHUNK_PUBLISHED_TOTAL = Counter(
+    "stream_chunk_published_total", "Total stream chunks published", ["agent_id"]
+)
+COORDINATOR_FORWARDED_TOTAL = Counter(
+    "coordinator_forwarded_total", "Total responses forwarded to local agents", ["type"]
 )
 
 # Publisher metrics

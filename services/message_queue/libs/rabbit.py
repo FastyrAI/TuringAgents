@@ -1,6 +1,8 @@
 import json
+import os
+import asyncio
 import ssl
-from typing import Optional, Any, Mapping
+from typing import Optional, Any, Mapping, Dict
 from urllib.parse import urlsplit
 
 import aio_pika
@@ -52,14 +54,47 @@ def _build_ssl_context(settings: Settings) -> Optional[ssl.SSLContext]:
 
 
 async def connect(amqp_url: str | None = None) -> AbstractRobustConnection:
-    """Create a robust AMQP connection with optional TLS/mTLS support."""
+    """Create a robust AMQP connection with optional TLS/mTLS and retry/backoff.
+
+    Why: In CI and during local startup, RabbitMQ may not be immediately ready.
+    A brief retry loop prevents flaky failures during topology initialization
+    and test setup while keeping runtime behavior unchanged.
+
+    Environment overrides:
+    - RABBITMQ_CONNECT_ATTEMPTS (default: 12)
+    - RABBITMQ_CONNECT_BASE_DELAY_MS (default: 500)
+    - RABBITMQ_CONNECT_MAX_DELAY_MS (default: 3000)
+
+    Example:
+        # Single call site for establishing connections
+        conn = await connect()
+        async with conn:
+            channel = await conn.channel()
+            ...
+    """
     settings = Settings()
     url = amqp_url or settings.rabbitmq_url
     ssl_context = _build_ssl_context(settings)
-    if ssl_context is not None:
-        # Underlying aiormq expects SSLOptions-type; our context aligns but stubs complain
-        return await aio_pika.connect_robust(url, ssl=True, ssl_options=ssl_context)  # type: ignore[arg-type]
-    return await aio_pika.connect_robust(url)
+
+    max_attempts = int(os.getenv("RABBITMQ_CONNECT_ATTEMPTS", "12"))
+    delay_ms = int(os.getenv("RABBITMQ_CONNECT_BASE_DELAY_MS", "500"))
+    max_delay_ms = int(os.getenv("RABBITMQ_CONNECT_MAX_DELAY_MS", "3000"))
+
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            if ssl_context is not None:
+                # Underlying aiormq expects SSLOptions-type; our context aligns but stubs complain
+                return await aio_pika.connect_robust(url, ssl=True, ssl_options=ssl_context)  # type: ignore[arg-type]
+            return await aio_pika.connect_robust(url)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if attempt == max_attempts:
+                break
+            await asyncio.sleep(delay_ms / 1000.0)
+            delay_ms = min(int(delay_ms * 2), max_delay_ms)
+    assert last_exc is not None
+    raise last_exc
 
 
 async def declare_org_topology(channel: AbstractChannel, org_id: str) -> None:
@@ -115,12 +150,14 @@ async def publish_request(
     exchange = await channel.get_exchange(f"org.{org_id}.requests")
     amqp_priority = map_logical_priority_to_amqp(logical_priority)
     body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    # Ensure headers are a plain dict for type checker
+    hdrs: Dict[str, Any] = dict(headers) if headers else {}
     amqp_message = Message(
         body=body,
         content_type="application/json",
         delivery_mode=DeliveryMode.PERSISTENT if persistent else DeliveryMode.NOT_PERSISTENT,
         priority=amqp_priority,
-        headers=headers or {},
+        headers=hdrs,
     )
     await exchange.publish(amqp_message, routing_key="requests", mandatory=True)
 
@@ -135,11 +172,12 @@ async def publish_response(
     """Publish a response payload to the agent's response exchange."""
     exchange = await channel.get_exchange(f"agent.{agent_id}.responses")
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    hdrs: Dict[str, Any] = dict(headers) if headers else {}
     amqp_message = Message(
         body=body,
         content_type="application/json",
         delivery_mode=DeliveryMode.PERSISTENT if persistent else DeliveryMode.NOT_PERSISTENT,
-        headers=headers or {},
+        headers=hdrs,
     )
     await exchange.publish(amqp_message, routing_key="responses")
 
@@ -185,12 +223,13 @@ async def schedule_retry(
     exchange = await channel.get_exchange(f"org.{org_id}.retry")
     amqp_priority = map_logical_priority_to_amqp(logical_priority)
     body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    hdrs: Dict[str, Any] = dict(headers) if headers else {}
     amqp_message = Message(
         body=body,
         content_type="application/json",
         delivery_mode=DeliveryMode.PERSISTENT,
         priority=amqp_priority,
-        headers=headers or {},
+        headers=hdrs,
     )
     await exchange.publish(amqp_message, routing_key=f"delay_{delay_ms}")
 
@@ -208,7 +247,7 @@ async def publish_to_dlq(
         body=body,
         content_type="application/json",
         delivery_mode=DeliveryMode.PERSISTENT,
-        headers=headers or {},
+        headers=dict(headers) if headers else {},
     )
     await dlx.publish(amqp_message, routing_key="dead")
 
@@ -227,7 +266,7 @@ async def publish_requests_batch(
     for item in items:
         msg = item["message"]
         logical_priority = int(item.get("priority", 2))
-        headers = item.get("headers") or {}
+        hdrs: Dict[str, Any] = dict(item.get("headers") or {})
         amqp_priority = map_logical_priority_to_amqp(logical_priority)
         body = json.dumps(msg, separators=(",", ":")).encode("utf-8")
         amqp_message = Message(
@@ -235,7 +274,7 @@ async def publish_requests_batch(
             content_type="application/json",
             delivery_mode=DeliveryMode.PERSISTENT if persistent else DeliveryMode.NOT_PERSISTENT,
             priority=amqp_priority,
-            headers=headers,
+            headers=hdrs,
         )
         await exchange.publish(amqp_message, routing_key="requests", mandatory=True)
 

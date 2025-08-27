@@ -85,6 +85,8 @@ class Settings(BaseModel):
     prefetch_count: int = int(os.getenv("WORKER_PREFETCH", "10"))
     idempotency_ttl_days: int = int(os.getenv("IDEMPOTENCY_TTL_DAYS", "30"))
     poison_threshold: int = int(os.getenv("POISON_THRESHOLD", "3"))
+    # DLQ retention in days for purge job
+    dlq_retention_days: int = int(os.getenv("DLQ_RETENTION_DAYS", "90"))
 
     # Audit batching
     audit_batch_size: int = int(os.getenv("AUDIT_BATCH_SIZE", "100"))
