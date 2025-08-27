@@ -28,6 +28,17 @@ POISON_QUARANTINED_TOTAL = Counter(
     "poison_quarantined_total", "Total messages quarantined as poison", ["type"]
 )
 
+# Response metrics (streaming + non-streaming)
+WORKER_RESPONSE_PUBLISHED_TOTAL = Counter(
+    "worker_response_published_total", "Total responses published by worker", ["type"]
+)
+STREAM_CHUNK_PUBLISHED_TOTAL = Counter(
+    "stream_chunk_published_total", "Total stream chunks published", ["agent_id"]
+)
+COORDINATOR_FORWARDED_TOTAL = Counter(
+    "coordinator_forwarded_total", "Total responses forwarded to local agents", ["type"]
+)
+
 # Publisher metrics
 PUBLISH_ATTEMPT_TOTAL = Counter(
     "publish_attempt_total", "Total publish attempts", ["priority", "result"]
