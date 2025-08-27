@@ -21,6 +21,12 @@ WORKER_RETRY_TOTAL = Counter(
 WORKER_DLQ_TOTAL = Counter(
     "worker_dlq_total", "Total messages sent to DLQ", ["type"]
 )
+RETRY_DEMOTION_TOTAL = Counter(
+    "retry_demotion_total", "Total priority demotions due to retries", ["from", "to"]
+)
+RETRY_POLICY_TOTAL = Counter(
+    "retry_policy_total", "Retry decisions by strategy and error type", ["strategy", "error_type"]
+)
 QUEUE_DEPTH = Gauge(
     "queue_depth", "Current queue depth for the org queue", ["org_id"]
 )
