@@ -1,8 +1,25 @@
 """
-Replay DLQ messages back into the org request exchange.
+Replay DLQ messages back into the per-organization request exchange.
 
-Usage:
-  uv run python -m scripts.replay_dlq --org-id demo-org --limit 1 [--priority 1]
+Why:
+- Enables operators to recover from terminal failures by selectively replaying
+  messages from the Dead Letter Queue (DLQ).
+
+How:
+- Reads candidate messages from the `dlq_messages` table, supports filtering by
+  type and time window, and republishes to the org's requests exchange with an
+  optional priority override.
+
+Usage examples:
+- Dry run the first 10 DLQ messages for an org and see what would be replayed:
+  uv run python -m scripts.replay_dlq --org-id demo-org --limit 10 --dry-run
+
+- Replay only `tool_call` messages since a timestamp at priority P1:
+  uv run python -m scripts.replay_dlq --org-id demo-org --type tool_call \
+    --since 2025-08-14T00:00:00 --priority 1 --yes
+
+- Replay a bounded batch and view progress output as [n/total]:
+  uv run python -m scripts.replay_dlq --org-id demo-org --limit 50 --yes
 """
 
 import argparse
@@ -10,6 +27,7 @@ import asyncio
 from typing import Any
 
 from libs.config import RABBITMQ_URL
+from libs.metrics import DLQ_REPLAY_TOTAL
 from libs.rabbit import publish_request, connect
 from libs.audit import record_message_event
 
@@ -18,6 +36,28 @@ from sqlalchemy import select
 
 
 async def replay(org_id: str, limit: int, priority: int, *, dry_run: bool, msg_type: str | None, since: str | None, until: str | None, yes: bool) -> None:
+    """Replay eligible DLQ messages back to the requests exchange.
+
+    What:
+    - Queries the `dlq_messages` table for the given `org_id`, optionally filtering by
+      `msg_type` and a time window [`since`, `until`]. Messages are ordered oldest-first
+      and limited by `limit`.
+
+    Why:
+    - Provides a safe and controlled way to reprocess previously failed messages.
+      Supports a dry-run mode for preview and requires confirmation when overriding
+      original priorities to reduce operational mistakes.
+
+    How to use:
+    - Prefer dry-run first to inspect the batch, then re-run with `--yes` if overriding
+      priority and proceed to replay.
+
+    Examples:
+    - Dry run:
+      await replay("demo-org", 5, 2, dry_run=True, msg_type=None, since=None, until=None, yes=False)
+    - Replay tool_call at P1:
+      await replay("demo-org", 20, 1, dry_run=False, msg_type="tool_call", since=None, until=None, yes=True)
+    """
     from libs.db import get_session
     from libs.orm_models import DLQMessage
     messages = []
@@ -56,7 +96,8 @@ async def replay(org_id: str, limit: int, priority: int, *, dry_run: bool, msg_t
     connection = await connect(RABBITMQ_URL)
     async with connection:
         channel = await connection.channel()
-        for row in messages:
+        total = len(messages)
+        for idx, row in enumerate(messages, start=1):
             _dlq_id, msg, ts = row
             # Reset retry_count on replay
             msg["retry_count"] = 0
@@ -71,10 +112,16 @@ async def replay(org_id: str, limit: int, priority: int, *, dry_run: bool, msg_t
                 "event_type": "replayed",
                 "details": {"source": "dlq_replay"},
             })
-            print(f"Replayed {msg.get('message_id')}")
+            DLQ_REPLAY_TOTAL.labels(org_id=org_id).inc()
+            print(f"[{idx}/{total}] Replayed {msg.get('message_id')}")
 
 
 def main() -> None:
+    """CLI entrypoint for replaying DLQ messages.
+
+    Parses arguments, then invokes `replay` to perform the dry-run or replay operation.
+    See module docstring for examples.
+    """
     parser = argparse.ArgumentParser(description="Replay DLQ messages")
     parser.add_argument("--org-id", required=True)
     parser.add_argument("--limit", type=int, default=1)
