@@ -18,6 +18,7 @@ from aio_pika.abc import AbstractIncomingMessage
 from libs.config import Settings
 from libs.rabbit import declare_agent_response_topology
 from libs.tracing import start_tracing, get_tracer, extract_context_from_headers
+from opentelemetry import context  # type: ignore
 
 
 class AgentCoordinator:
