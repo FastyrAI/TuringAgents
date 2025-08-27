@@ -36,6 +36,14 @@ PUBLISH_FAILED_TOTAL = Counter(
     "publish_failed_total", "Total publish failures", ["reason"]
 )
 
+# Rate limiting metrics
+RATE_LIMIT_THROTTLED_TOTAL = Counter(
+    "rate_limit_throttled_total", "Total times the producer waited for rate limit"
+)
+RATE_LIMIT_WAIT_SECONDS = Histogram(
+    "rate_limit_wait_seconds", "Seconds waited due to token-bucket limiting", buckets=(0.001, 0.01, 0.05, 0.1, 0.5, 1, 2)
+)
+
 
 def start_metrics_server(port: int = 9000) -> None:
     start_http_server(port)

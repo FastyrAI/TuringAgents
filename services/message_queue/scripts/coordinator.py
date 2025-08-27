@@ -16,22 +16,23 @@ import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
 
 from libs.config import Settings
-from libs.rabbit import declare_agent_response_topology
+from libs.rabbit import declare_agent_response_topology, connect
 from libs.tracing import start_tracing, get_tracer, extract_context_from_headers
+from opentelemetry import context  # type: ignore
 
 
 class AgentCoordinator:
     """Fan-in of agent responses for all local agents on this server."""
 
     def __init__(self) -> None:
-        self.local_agents: Dict[str, asyncio.Queue] = {}
+        self.local_agents: Dict[str, asyncio.Queue[dict[str, object]]] = {}
 
     async def run(self) -> None:
         """Open a connection and subscribe to each local agent's response queue."""
         start_tracing("ta-coordinator")
         self._tracer = get_tracer("ta-coordinator")
         settings = Settings()
-        connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+        connection = await connect(settings.rabbitmq_url)
         async with connection:
             channel = await connection.channel()
             # Pre-declare known agents (env var list)
@@ -52,6 +53,7 @@ class AgentCoordinator:
     async def _on_message(self, agent_id: str, message: AbstractIncomingMessage) -> None:
         """Push the response payload to the agent's in-memory queue."""
         try:
+            payload: dict[str, object]
             payload = json.loads(message.body)
         except Exception:  # noqa: BLE001
             payload = {"malformed": True}
@@ -60,7 +62,9 @@ class AgentCoordinator:
         try:
             with self._tracer.start_as_current_span("forward_response") as span:
                 span.set_attribute("agent_id", agent_id)
-                span.set_attribute("request_id", payload.get("request_id"))
+                rid = payload.get("request_id") if isinstance(payload.get("request_id"), (str, int)) else None
+                if rid is not None:
+                    span.set_attribute("request_id", rid)
                 await self.local_agents[agent_id].put(payload)
         finally:
             context.detach(token)

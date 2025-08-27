@@ -2,7 +2,7 @@
 Asynchronous org-scoped worker.
 
 - Consumes a single per-organization request queue (priority queue)
-- Serially processes messages and emits responses to per-agent response queues
+- Processes messages and emits responses to per-agent response queues
 - Handles retries via per-org delay queues and ships terminal failures to DLQ
 - Emits lifecycle audit events and upserts message state into Supabase
 """
@@ -14,7 +14,6 @@ import signal
 import time
 from typing import Any, Callable, Dict, Awaitable
 
-import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
 
 from libs.config import Settings
@@ -24,6 +23,7 @@ from libs.rabbit import (
     declare_agent_response_topology,
     schedule_retry,
     publish_to_dlq,
+    connect,
 )
 from libs.audit_pipeline import (
     audit_dequeued_processing,
@@ -47,18 +47,14 @@ from libs.constants import EVENT_DUPLICATE_SKIPPED, STATUS_DUPLICATE
 from libs.tracing import start_tracing, get_tracer, extract_context_from_headers
 from opentelemetry import context  # type: ignore
 from libs.poison import increment_failure, should_quarantine
-from libs.audit import record_message_event, upsert_message
+from libs.audit import record_message_event, upsert_message  # type: ignore
 
 
 Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
 class Worker:
-    """Message worker bound to an org and emitting responses for a given agent.
-
-    The design purposefully keeps one consumer per org queue to guarantee
-    per-org FIFO ordering (within same priority) as described in the ADR.
-    """
+    """Message worker bound to an org and emitting responses for a given agent."""
 
     def __init__(self, org_id: str, agent_id: str):
         self.org_id = org_id
@@ -96,7 +92,7 @@ class Worker:
         start_tracing("ta-worker")
         self._tracer = get_tracer("ta-worker")
 
-        connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+        connection = await connect(settings.rabbitmq_url)
         async with connection:
             channel = await connection.channel()
             # Apply QoS/prefetch from Settings
@@ -178,6 +174,7 @@ class Worker:
             except Exception as exc:  # noqa: BLE001
                 # Failure path: record failure first, then retry or dead-letter
                 print(f"Worker error: {exc}")
+                p: dict[str, Any]
                 try:
                     p = json.loads(message.body)
                 except Exception:
@@ -214,7 +211,7 @@ class Worker:
                 if retry_count < max_retries:
                     delay = next_delay_ms(retry_count, self.retry_delays)
                     # Publish to delay queue so it DLXes back to requests later
-                    connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+                    connection = await connect(Settings().rabbitmq_url)
                     async with connection:
                         channel = await connection.channel()
                         await schedule_retry(
@@ -228,7 +225,7 @@ class Worker:
                     WORKER_RETRY_TOTAL.labels(type=p.get("type")).inc()
                 else:
                     # Terminal failure: ship to DLQ and record audit entries
-                    connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+                    connection = await connect(Settings().rabbitmq_url)
                     async with connection:
                         channel = await connection.channel()
                         await publish_to_dlq(channel, org, p)
@@ -245,7 +242,7 @@ class Worker:
             "result": result,
             "timestamp": orig.get("created_at"),
         }
-        connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+        connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
             await publish_response(channel, self.agent_id, payload)
@@ -266,7 +263,7 @@ class Worker:
                 "message": str(exc),
             },
         }
-        connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+        connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
             await publish_response(channel, self.agent_id, error_payload)

@@ -6,6 +6,13 @@ from pydantic import BaseModel
 # Core connection settings
 RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/%2F")
 
+# TLS/mTLS configuration for RabbitMQ
+RABBITMQ_SSL_CA_PATH: str = os.getenv("RABBITMQ_SSL_CA_PATH", "")
+RABBITMQ_SSL_CERT_PATH: str = os.getenv("RABBITMQ_SSL_CERT_PATH", "")
+RABBITMQ_SSL_KEY_PATH: str = os.getenv("RABBITMQ_SSL_KEY_PATH", "")
+RABBITMQ_SSL_VERIFY: bool = os.getenv("RABBITMQ_SSL_VERIFY", "true").lower() in {"1", "true", "yes"}
+RABBITMQ_SSL_CHECK_HOSTNAME: bool = os.getenv("RABBITMQ_SSL_CHECK_HOSTNAME", "true").lower() in {"1", "true", "yes"}
+
 # Supabase configuration (server-side usage should prefer service role key)
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -78,5 +85,19 @@ class Settings(BaseModel):
     prefetch_count: int = int(os.getenv("WORKER_PREFETCH", "10"))
     idempotency_ttl_days: int = int(os.getenv("IDEMPOTENCY_TTL_DAYS", "30"))
     poison_threshold: int = int(os.getenv("POISON_THRESHOLD", "3"))
+
+    # TLS/mTLS
+    rabbitmq_ssl_ca_path: str = RABBITMQ_SSL_CA_PATH
+    rabbitmq_ssl_cert_path: str = RABBITMQ_SSL_CERT_PATH
+    rabbitmq_ssl_key_path: str = RABBITMQ_SSL_KEY_PATH
+    rabbitmq_ssl_verify: bool = RABBITMQ_SSL_VERIFY
+    rabbitmq_ssl_check_hostname: bool = RABBITMQ_SSL_CHECK_HOSTNAME
+
+    # Rate limiting (producer-side token bucket)
+    rate_limit_enabled: bool = os.getenv("RATE_LIMIT_ENABLED", "false").lower() in {"1", "true", "yes"}
+    org_tokens_per_sec: float = float(os.getenv("ORG_TOKENS_PER_SEC", "0"))
+    org_bucket_size: int = int(os.getenv("ORG_BUCKET_SIZE", "0"))
+    user_tokens_per_sec: float = float(os.getenv("USER_TOKENS_PER_SEC", "0"))
+    user_bucket_size: int = int(os.getenv("USER_BUCKET_SIZE", "0"))
 
 

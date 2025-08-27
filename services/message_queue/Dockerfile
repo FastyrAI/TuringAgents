@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir uv==0.4.20
 COPY pyproject.toml /app/
 COPY libs /app/libs
 COPY scripts /app/scripts
+COPY tests /app/tests
 
 # Install deps
 RUN uv venv && . .venv/bin/activate && uv sync

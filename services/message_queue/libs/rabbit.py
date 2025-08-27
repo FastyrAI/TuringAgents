@@ -1,19 +1,65 @@
 import json
-from typing import Optional
+import ssl
+from typing import Optional, Any, Mapping
+from urllib.parse import urlsplit
 
 import aio_pika
 from aio_pika import ExchangeType, Message, DeliveryMode
-from aio_pika.abc import AbstractChannel
+from aio_pika.abc import AbstractChannel, AbstractRobustConnection, HeadersType
 
-from libs.config import map_logical_priority_to_amqp
+from libs.config import (
+    map_logical_priority_to_amqp,
+    Settings,
+)
 
 
 PRIORITY_LEVELS = 10  # x-max-priority
 
 
-async def connect(amqp_url: str) -> aio_pika.RobustConnection:
-    """Create a robust AMQP connection (auto-reconnect)."""
-    return await aio_pika.connect_robust(amqp_url)
+def _build_ssl_context(settings: Settings) -> Optional[ssl.SSLContext]:
+    """Build an SSLContext for TLS/mTLS if configured.
+
+    Returns None if no TLS is required or configuration not provided.
+    """
+    scheme = urlsplit(settings.rabbitmq_url).scheme.lower()
+    wants_tls = scheme == "amqps" or any(
+        [
+            bool(settings.rabbitmq_ssl_ca_path),
+            bool(settings.rabbitmq_ssl_cert_path),
+            bool(settings.rabbitmq_ssl_key_path),
+        ]
+    )
+    if not wants_tls:
+        return None
+
+    # Create default context, optionally disabling verification for dev
+    cafile = settings.rabbitmq_ssl_ca_path or None
+    context = ssl.create_default_context(cafile=cafile)
+
+    # Client certs for mTLS if provided
+    if settings.rabbitmq_ssl_cert_path and settings.rabbitmq_ssl_key_path:
+        context.load_cert_chain(settings.rabbitmq_ssl_cert_path, settings.rabbitmq_ssl_key_path)
+
+    # Verification and hostname checks
+    if not settings.rabbitmq_ssl_verify:
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    else:
+        context.check_hostname = bool(settings.rabbitmq_ssl_check_hostname)
+        context.verify_mode = ssl.CERT_REQUIRED
+
+    return context
+
+
+async def connect(amqp_url: str | None = None) -> AbstractRobustConnection:
+    """Create a robust AMQP connection with optional TLS/mTLS support."""
+    settings = Settings()
+    url = amqp_url or settings.rabbitmq_url
+    ssl_context = _build_ssl_context(settings)
+    if ssl_context is not None:
+        # Underlying aiormq expects SSLOptions-type; our context aligns but stubs complain
+        return await aio_pika.connect_robust(url, ssl=True, ssl_options=ssl_context)  # type: ignore[arg-type]
+    return await aio_pika.connect_robust(url)
 
 
 async def declare_org_topology(channel: AbstractChannel, org_id: str) -> None:
@@ -56,9 +102,9 @@ async def declare_agent_response_topology(channel: AbstractChannel, agent_id: st
 async def publish_request(
     channel: AbstractChannel,
     org_id: str,
-    message: dict,
+    message: Mapping[str, Any],
     logical_priority: int,
-    headers: Optional[dict] = None,
+    headers: Optional[HeadersType] = None,
     persistent: bool = True,
 ) -> None:
     """Publish a request to the org exchange with AMQP priority.
@@ -82,8 +128,8 @@ async def publish_request(
 async def publish_response(
     channel: AbstractChannel,
     agent_id: str,
-    payload: dict,
-    headers: Optional[dict] = None,
+    payload: Mapping[str, Any],
+    headers: Optional[HeadersType] = None,
     persistent: bool = True,
 ) -> None:
     """Publish a response payload to the agent's response exchange."""
@@ -130,10 +176,10 @@ async def declare_org_retry_topology(channel: AbstractChannel, org_id: str, dela
 async def schedule_retry(
     channel: AbstractChannel,
     org_id: str,
-    message: dict,
+    message: Mapping[str, Any],
     delay_ms: int,
     logical_priority: int,
-    headers: Optional[dict] = None,
+    headers: Optional[HeadersType] = None,
 ) -> None:
     """Send a failed message to the per-org retry exchange for a future redelivery."""
     exchange = await channel.get_exchange(f"org.{org_id}.retry")
@@ -152,8 +198,8 @@ async def schedule_retry(
 async def publish_to_dlq(
     channel: AbstractChannel,
     org_id: str,
-    message: dict,
-    headers: Optional[dict] = None,
+    message: Mapping[str, Any],
+    headers: Optional[HeadersType] = None,
 ) -> None:
     """Publish a terminal failure to the org DLQ exchange."""
     dlx = await channel.get_exchange(f"org.{org_id}.dlx")
@@ -170,7 +216,7 @@ async def publish_to_dlq(
 async def publish_requests_batch(
     channel: AbstractChannel,
     org_id: str,
-    items: list[dict],
+    items: list[dict[str, Any]],
     persistent: bool = True,
 ) -> None:
     """Publish a batch of request messages efficiently on a single channel.

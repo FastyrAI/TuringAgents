@@ -10,15 +10,13 @@ import asyncio
 import os
 from typing import Sequence
 
-import aio_pika
-
 from libs.config import RABBITMQ_URL
-from libs.rabbit import declare_org_topology, declare_agent_response_topology, declare_org_retry_topology
+from libs.rabbit import declare_org_topology, declare_agent_response_topology, declare_org_retry_topology, connect
 
 
 async def main(org_ids: Sequence[str], agent_ids: Sequence[str]) -> None:
     """Declare the required RabbitMQ topology for the given orgs/agents."""
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    connection = await connect(RABBITMQ_URL)
     async with connection:
         channel = await connection.channel()
         # Declare org request and DLQ topology
