@@ -19,7 +19,7 @@ create table if not exists public.message_events (
   id bigserial primary key,
   message_id text not null,
   org_id text not null,
-  event_type text not null, -- created|enqueued|dequeued|processing|completed|failed|retry_scheduled|dead_letter
+  event_type text not null, -- created|enqueued|promoted|dequeued|processing|completed|failed|retry_scheduled|dead_letter|conflict_*
   details jsonb,
   created_at timestamptz default now() not null
 );

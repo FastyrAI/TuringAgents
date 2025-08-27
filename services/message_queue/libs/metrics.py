@@ -61,6 +61,32 @@ RATE_LIMIT_WAIT_SECONDS = Histogram(
     "rate_limit_wait_seconds", "Seconds waited due to token-bucket limiting", buckets=(0.001, 0.01, 0.05, 0.1, 0.5, 1, 2)
 )
 
+# Audit batching metrics
+AUDIT_EVENT_ENQUEUED_TOTAL = Counter(
+    "audit_event_enqueued_total",
+    "Total audit events enqueued for batching",
+    ["event_type"],
+)
+AUDIT_EVENTS_DROPPED_TOTAL = Counter(
+    "audit_events_dropped_total",
+    "Total audit events dropped due to full buffer",
+)
+AUDIT_BATCH_FLUSH_TOTAL = Counter(
+    "audit_batch_flush_total",
+    "Total number of audit batch flushes",
+    ["reason"],  # size | interval | shutdown
+)
+AUDIT_BATCH_SIZE = Histogram(
+    "audit_batch_size",
+    "Number of audit events written in a single batch",
+    buckets=(1, 5, 10, 25, 50, 100, 250, 500, 1000),
+)
+AUDIT_EVENT_WRITE_SECONDS = Histogram(
+    "audit_event_write_seconds",
+    "Time taken to write an audit batch to the database",
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2),
+)
+
 
 def start_metrics_server(port: int = 9000) -> None:
     start_http_server(port)
