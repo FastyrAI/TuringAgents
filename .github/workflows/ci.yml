@@ -21,7 +21,7 @@ jobs:
         run: uv venv && . .venv/bin/activate && uv sync --extra test
         working-directory: services/message_queue
       - name: Run tests
-        run: . .venv/bin/activate && pytest -q
+        run: . .venv/bin/activate && pytest -vv -s -o log_cli=true -o log_cli_level=INFO -o addopts=
         working-directory: services/message_queue
 
   e2e:
@@ -53,14 +53,14 @@ jobs:
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           AGENT_IDS: demo-agent
-        run: . .venv/bin/activate && nohup uv run python -m scripts.coordinator > .coordinator.log 2>&1 &
+        run: . .venv/bin/activate && nohup uv run python -u -m scripts.coordinator > .coordinator.log 2>&1 &
         working-directory: services/message_queue
       - name: E2E - start worker
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           ORG_ID: demo-org
           AGENT_ID: demo-agent
-        run: . .venv/bin/activate && nohup uv run python -m scripts.worker > .worker.log 2>&1 &
+        run: . .venv/bin/activate && nohup uv run python -u -m scripts.worker > .worker.log 2>&1 &
         working-directory: services/message_queue
       - name: E2E - publish message
         env:
@@ -72,7 +72,13 @@ jobs:
         working-directory: services/message_queue
       - name: E2E - assert coordinator output
         run: |
-          sleep 2
+          # Wait up to 15s for the coordinator to flush the expected log line
+          for i in $(seq 1 15); do
+            if grep -q "\[demo-agent response\]" .coordinator.log; then
+              break
+            fi
+            sleep 1
+          done
           cat .coordinator.log
           grep -q "\[demo-agent response\]" .coordinator.log
         working-directory: services/message_queue
@@ -120,7 +126,7 @@ jobs:
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           AGENT_IDS: demo-agent
-        run: . .venv/bin/activate && nohup uv run python -m scripts.coordinator > .coordinator.log 2>&1 &
+        run: . .venv/bin/activate && nohup uv run python -u -m scripts.coordinator > .coordinator.log 2>&1 &
         working-directory: services/message_queue
       - name: E2E (Supabase) - start worker
         env:
@@ -130,7 +136,7 @@ jobs:
           SUPABASE_URL: ${{ env.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ env.DATABASE_URL }}
-        run: . .venv/bin/activate && nohup uv run python -m scripts.worker > .worker.log 2>&1 &
+        run: . .venv/bin/activate && nohup uv run python -u -m scripts.worker > .worker.log 2>&1 &
         working-directory: services/message_queue
       - name: E2E (Supabase) - publish message
         env:
