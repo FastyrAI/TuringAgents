@@ -4,6 +4,9 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+.myenv/
+myenv/
+uploads/
 .python-version
 .mypy_cache/
 .pytest_cache/
