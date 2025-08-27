@@ -20,6 +20,7 @@ STATUS_QUARANTINED = "QUARANTINED"
 # Event types
 EVENT_CREATED = "created"
 EVENT_ENQUEUED = "enqueued"
+EVENT_PROMOTED = "promoted"
 EVENT_DEQUEUED = "dequeued"
 EVENT_PROCESSING = "processing"
 EVENT_COMPLETED = "completed"
@@ -28,5 +29,10 @@ EVENT_RETRY_SCHEDULED = "retry_scheduled"
 EVENT_DEAD_LETTER = "dead_letter"
 EVENT_DUPLICATE_SKIPPED = "duplicate_skipped"
 EVENT_POISON_QUARANTINED = "poison_quarantined"
+
+# Conflict detection events
+EVENT_CONFLICT_DETECTED = "conflict_detected"
+EVENT_CONFLICT_RESOLVED = "conflict_resolved"
+EVENT_CONFLICT_RESOLUTION_FAILED = "conflict_resolution_failed"
 
 

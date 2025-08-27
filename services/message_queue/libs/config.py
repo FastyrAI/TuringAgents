@@ -86,6 +86,11 @@ class Settings(BaseModel):
     idempotency_ttl_days: int = int(os.getenv("IDEMPOTENCY_TTL_DAYS", "30"))
     poison_threshold: int = int(os.getenv("POISON_THRESHOLD", "3"))
 
+    # Audit batching
+    audit_batch_size: int = int(os.getenv("AUDIT_BATCH_SIZE", "100"))
+    audit_flush_interval_ms: int = int(os.getenv("AUDIT_FLUSH_INTERVAL_MS", "1000"))
+    audit_queue_max: int = int(os.getenv("AUDIT_QUEUE_MAX", "50000"))
+
     # TLS/mTLS
     rabbitmq_ssl_ca_path: str = RABBITMQ_SSL_CA_PATH
     rabbitmq_ssl_cert_path: str = RABBITMQ_SSL_CERT_PATH

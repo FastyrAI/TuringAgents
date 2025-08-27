@@ -19,6 +19,10 @@ from libs.constants import (
     EVENT_FAILED,
     EVENT_RETRY_SCHEDULED,
     EVENT_DEAD_LETTER,
+    EVENT_PROMOTED,
+    EVENT_CONFLICT_DETECTED,
+    EVENT_CONFLICT_RESOLVED,
+    EVENT_CONFLICT_RESOLUTION_FAILED,
 )
 
 
@@ -174,4 +178,68 @@ async def audit_dead_letter(payload: dict[str, Any], org_id: str, error: Excepti
         )
     )
 
+
+async def audit_promoted(message_id: str, org_id: str, from_priority: int, to_priority: int) -> None:
+    """Record that a message priority was promoted (e.g., P3->P2).
+
+    Why: The ADR requires explicit auditability of time-based promotions.
+    Example:
+        >>> await audit_promoted("m1", "org", 3, 2)
+    """
+    await record_message_event(
+        MessageEventRecord(
+            message_id=message_id,
+            org_id=org_id,
+            event_type=EVENT_PROMOTED,
+            details={"from": int(from_priority), "to": int(to_priority)},
+        )
+    )
+
+
+async def audit_conflict_detected(message_id: str | None, org_id: str, resource: str, reason: str) -> None:
+    """Record that a potential processing conflict was detected.
+
+    Example:
+        >>> await audit_conflict_detected("m1", "org", "doc:42", "write-write")
+    """
+    await record_message_event(
+        MessageEventRecord(
+            message_id=message_id,
+            org_id=org_id,
+            event_type=EVENT_CONFLICT_DETECTED,
+            details={"resource": resource, "reason": reason},
+        )
+    )
+
+
+async def audit_conflict_resolved(message_id: str | None, org_id: str, resolution: str) -> None:
+    """Record that a conflict was automatically resolved.
+
+    Example:
+        >>> await audit_conflict_resolved("m1", "org", "deferred other task")
+    """
+    await record_message_event(
+        MessageEventRecord(
+            message_id=message_id,
+            org_id=org_id,
+            event_type=EVENT_CONFLICT_RESOLVED,
+            details={"resolution": resolution},
+        )
+    )
+
+
+async def audit_conflict_resolution_failed(message_id: str | None, org_id: str, error: str) -> None:
+    """Record that conflict resolution failed (needs human escalation).
+
+    Example:
+        >>> await audit_conflict_resolution_failed("m1", "org", "ambiguous ownership")
+    """
+    await record_message_event(
+        MessageEventRecord(
+            message_id=message_id,
+            org_id=org_id,
+            event_type=EVENT_CONFLICT_RESOLUTION_FAILED,
+            details={"error": error},
+        )
+    )
 
