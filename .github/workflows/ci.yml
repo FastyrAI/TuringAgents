@@ -2,6 +2,35 @@ name: CI
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build message_queue image
+        run: |
+          docker build -t ta/message-queue:ci ./services/message_queue
+
+      - name: Run unit tests via script
+        run: |
+          bash ./scripts/test_message_queue.sh
+
+name: CI
+
+on:
+  push:
     branches: [ main, master ]
   pull_request:
     branches: [ "**" ]

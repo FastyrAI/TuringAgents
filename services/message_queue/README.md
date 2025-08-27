@@ -18,6 +18,7 @@ source .venv/bin/activate
 Use the monorepo compose at the repository root:
 ```bash
 # from repo root
+cp .env.example .env   # then edit SUPABASE_*, ORG_ID, AGENT_ID as needed
 docker compose up -d rabbitmq
 ```
 RabbitMQ UI: `http://localhost:15672` (guest/guest)
@@ -38,14 +39,25 @@ uv run python -m scripts.init_topology
 
 ## Run coordinator (prints demo-agent responses)
 ```bash
-export AGENT_IDS=demo-agent
+# Using Docker (recommended for quick start)
+docker compose run --rm coordinator
+
+# Or run locally in venv
+export AGENT_IDS=${AGENT_ID:-demo-agent}
 uv run python -m scripts.coordinator
 ```
 
 ## Run worker (consumes demo-org queue)
 ```bash
-export ORG_ID=demo-org
-export AGENT_ID=demo-agent
+# Using Docker (recommended for quick start)
+docker compose run --rm \
+  -e ORG_ID=${ORG_ID:-demo-org} \
+  -e AGENT_ID=${AGENT_ID:-demo-agent} \
+  worker
+
+# Or run locally in venv
+export ORG_ID=${ORG_ID:-demo-org}
+export AGENT_ID=${AGENT_ID:-demo-agent}
 uv run python -m scripts.worker
 ```
 The worker exposes Prometheus metrics on `http://localhost:9000/metrics` by default.
@@ -57,6 +69,15 @@ export PRIORITY=0   # P0..P3 as 0..3
 export TYPE=agent_message
 uv run python -m scripts.producer
 ```
+
+## Environment
+Copy `.env.example` to `.env` in the repo root and set:
+
+- `SUPABASE_URL`: your Supabase URL (e.g., `http://localhost:54321` for local)
+- `SUPABASE_SERVICE_ROLE_KEY`: service role key
+- `ORG_ID`: default org for local runs
+- `AGENT_ID`: default agent for local runs
+
 
 ## Kubernetes
 See `docs/DEPLOYMENT_K8S.md` for a checklist and manifests.
