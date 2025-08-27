@@ -31,7 +31,7 @@ from libs.audit_pipeline import (
     audit_failed_then_retry,
     audit_dead_letter,
 )
-from libs.retry import next_delay_ms
+from libs.retry import decide_retry
 from libs.constants import DEFAULT_RETRY_DELAYS_MS
 from libs.metrics import (
     start_metrics_server,
@@ -40,6 +40,8 @@ from libs.metrics import (
     WORKER_RETRY_TOTAL,
     WORKER_DLQ_TOTAL,
     QUEUE_DEPTH,
+    RETRY_DEMOTION_TOTAL,
+    RETRY_POLICY_TOTAL,
 )
 from libs.backpressure import get_queue_depth
 from libs.dedup import compute_dedup_key, mark_and_check
@@ -180,10 +182,10 @@ class Worker:
                 except Exception:
                     p = {"org_id": self.org_id}
 
-                retry_count = int(p.get("retry_count", 0))
-                max_retries = int(p.get("max_retries", 3))
-                p["retry_count"] = retry_count + 1
+                # Compute retry decision with policy + demotion per ADR Step 1.2
                 org = p.get("org_id", self.org_id)
+                old_priority = int(p.get("priority", 2))
+                decision = decide_retry(p, exc, delays=self.retry_delays)
 
                 # Poison pill detection: if repeated failures exceed threshold, quarantine
                 dedup_key = compute_dedup_key(p)
@@ -208,8 +210,10 @@ class Worker:
                     POISON_QUARANTINED_TOTAL.labels(type=p.get("type")).inc()
                     return
 
-                if retry_count < max_retries:
-                    delay = next_delay_ms(retry_count, self.retry_delays)
+                if decision.should_retry:
+                    # Apply demotion and increment retry_count
+                    p["priority"] = decision.next_priority
+                    p["retry_count"] = decision.next_retry_count
                     # Publish to delay queue so it DLXes back to requests later
                     connection = await connect(Settings().rabbitmq_url)
                     async with connection:
@@ -218,10 +222,24 @@ class Worker:
                             channel,
                             org,
                             p,
-                            delay_ms=delay,
-                            logical_priority=int(p.get("priority", 2)),
+                            delay_ms=decision.delay_ms,
+                            logical_priority=decision.next_priority,
                         )
-                    await audit_failed_then_retry(p, org, exc, int(p["retry_count"]), delay)
+                    # Metrics: policy + demotion
+                    RETRY_POLICY_TOTAL.labels(strategy=str(decision.strategy), error_type=str(decision.error_type)).inc()
+                    if decision.next_priority != old_priority:
+                        RETRY_DEMOTION_TOTAL.labels(from=f"P{old_priority}", to=f"P{decision.next_priority}").inc()
+                    await audit_failed_then_retry(
+                        p,
+                        org,
+                        exc,
+                        int(p["retry_count"]),
+                        decision.delay_ms,
+                        demotion_from=old_priority,
+                        demotion_to=decision.next_priority,
+                        strategy=str(decision.strategy),
+                        error_type=str(decision.error_type),
+                    )
                     WORKER_RETRY_TOTAL.labels(type=p.get("type")).inc()
                 else:
                     # Terminal failure: ship to DLQ and record audit entries
