@@ -18,9 +18,11 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Sync deps
-        run: uv venv && . .venv/bin/activate && uv sync
+        run: uv venv && . .venv/bin/activate && uv sync --extra db
+        working-directory: services/message_queue
       - name: Run tests
         run: . .venv/bin/activate && pytest -q
+        working-directory: services/message_queue
 
   e2e:
     runs-on: ubuntu-latest
@@ -40,22 +42,26 @@ jobs:
         run: pip install uv
       - name: Sync deps
         run: uv venv && . .venv/bin/activate && uv sync
+        working-directory: services/message_queue
       - name: E2E - init topology
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           ORG_IDS: demo-org
         run: . .venv/bin/activate && uv run python -m scripts.init_topology
+        working-directory: services/message_queue
       - name: E2E - start coordinator
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           AGENT_IDS: demo-agent
         run: . .venv/bin/activate && nohup uv run python -m scripts.coordinator > .coordinator.log 2>&1 &
+        working-directory: services/message_queue
       - name: E2E - start worker
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           ORG_ID: demo-org
           AGENT_ID: demo-agent
         run: . .venv/bin/activate && nohup uv run python -m scripts.worker > .worker.log 2>&1 &
+        working-directory: services/message_queue
       - name: E2E - publish message
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
@@ -63,11 +69,13 @@ jobs:
           PRIORITY: 0
           TYPE: agent_message
         run: . .venv/bin/activate && uv run python -m scripts.producer
+        working-directory: services/message_queue
       - name: E2E - assert coordinator output
         run: |
           sleep 2
           cat .coordinator.log
           grep -q "\[demo-agent response\]" .coordinator.log
+        working-directory: services/message_queue
 
   e2e-supabase:
     needs: [test]
@@ -88,6 +96,7 @@ jobs:
         run: pip install uv
       - name: Sync deps
         run: uv venv && . .venv/bin/activate && uv sync
+        working-directory: services/message_queue
       - name: Install Supabase CLI
         run: |
           curl -L https://github.com/supabase/cli/releases/download/v2.34.3/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
@@ -99,16 +108,20 @@ jobs:
           supabase start | tee supabase.out
           echo "SUPABASE_URL=$(grep -oE 'API URL: (.*)' supabase.out | awk '{print $3}')" >> $GITHUB_ENV
           echo "SUPABASE_SERVICE_ROLE_KEY=$(grep -oE 'service_role key: (.*)' supabase.out | sed 's/service_role key: //')" >> $GITHUB_ENV
+          echo "DATABASE_URL=$(grep -oE 'DB URL: (.*)' supabase.out | sed 's/DB URL: //')" >> $GITHUB_ENV
+        working-directory: services/message_queue
       - name: E2E (Supabase) - init topology
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           ORG_IDS: demo-org
         run: . .venv/bin/activate && uv run python -m scripts.init_topology
+        working-directory: services/message_queue
       - name: E2E (Supabase) - start coordinator
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
           AGENT_IDS: demo-agent
         run: . .venv/bin/activate && nohup uv run python -m scripts.coordinator > .coordinator.log 2>&1 &
+        working-directory: services/message_queue
       - name: E2E (Supabase) - start worker
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
@@ -116,7 +129,9 @@ jobs:
           AGENT_ID: demo-agent
           SUPABASE_URL: ${{ env.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
         run: . .venv/bin/activate && nohup uv run python -m scripts.worker > .worker.log 2>&1 &
+        working-directory: services/message_queue
       - name: E2E (Supabase) - publish message
         env:
           RABBITMQ_URL: amqp://guest:guest@localhost:5672/%2F
@@ -124,6 +139,7 @@ jobs:
           PRIORITY: 0
           TYPE: agent_message
         run: . .venv/bin/activate && uv run python -m scripts.producer
+        working-directory: services/message_queue
       - name: E2E (Supabase) - assert audit events exist
         env:
           SUPABASE_URL: ${{ env.SUPABASE_URL }}
@@ -131,14 +147,23 @@ jobs:
         run: |
           . .venv/bin/activate
           uv run python - <<'PY'
-          import os, json
-          from supabase import create_client
-          url=os.environ['SUPABASE_URL']; key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
-          client=create_client(url,key)
-          res=(client.table('message_events').select('event_type').order('id', desc=True).limit(5).execute())
-          data=res.data or []
+          import os, json, httpx
+          base=os.environ['SUPABASE_URL'].rstrip('/')
+          key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
+          url=f"{base}/rest/v1/message_events?select=event_type&id=gt.0&order=id.desc&limit=5"
+          headers={
+              "apikey": key,
+              "Authorization": f"Bearer {key}",
+              "Accept": "application/json",
+          }
+          with httpx.Client(timeout=10) as client:
+              r=client.get(url, headers=headers)
+              r.raise_for_status()
+              data=r.json()
           print(json.dumps(data))
-          assert any(e['event_type'] in ('created','enqueued') for e in data), 'No audit events found'
+          assert any(e.get('event_type') in ('created','enqueued') for e in data), 'No audit events found'
           PY
+        working-directory: services/message_queue
+        working-directory: services/message_queue
 
 
