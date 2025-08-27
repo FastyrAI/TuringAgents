@@ -292,7 +292,6 @@ async def record_message_event(event: dict[str, Any] | "MessageEventRecord") -> 
             "message_id": "abc", "org_id": "demo", "event_type": "created"
         })
     """
-    """Write a message lifecycle event to Supabase (table: message_events)."""
     from libs.models import MessageEventRecord
 
     payload = event.model_dump() if isinstance(event, MessageEventRecord) else event
@@ -312,7 +311,6 @@ async def record_dlq_message(entry: dict[str, Any] | "DLQMessageRecord") -> None
             "org_id": "demo", "original_message": {...}, "error": {"msg": "boom"}
         })
     """
-    """Write a DLQ entry to Supabase (table: dlq_messages)."""
     from libs.models import DLQMessageRecord
 
     payload = entry.model_dump() if isinstance(entry, DLQMessageRecord) else entry
@@ -339,7 +337,6 @@ async def upsert_message(record: dict[str, Any] | "MessageRecord") -> None:
             "message_id": "abc", "org_id": "demo", "status": "QUEUED", "payload": {}
         })
     """
-    """Upsert a message record in Supabase (table: messages)."""
     from libs.models import MessageRecord
 
     payload = record.model_dump() if isinstance(record, MessageRecord) else record

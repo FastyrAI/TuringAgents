@@ -48,10 +48,12 @@ ENVIRONMENT: EnvName = os.getenv("ENVIRONMENT", "development").lower()  # type: 
 
 
 def is_prod() -> bool:
+    """Return True when running in production environment."""
     return ENVIRONMENT == "production"
 
 
 def is_supabase_configured() -> bool:
+    """Return True if Supabase URL and service role key are configured."""
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
 

@@ -1,6 +1,7 @@
 """Prometheus metrics and a tiny HTTP server to expose them.
 
-Call `start_metrics_server(port)` once in a process to expose /metrics.
+Call ``start_metrics_server(port)`` once per process to expose ``/metrics``.
+Modules import and increment these counters/histograms directly.
 """
 
 from __future__ import annotations
@@ -89,6 +90,14 @@ AUDIT_EVENT_WRITE_SECONDS = Histogram(
 
 
 def start_metrics_server(port: int = 9000) -> None:
+    """Start an HTTP server that exposes Prometheus metrics at ``/metrics``.
+
+    Safe to call multiple times per process; subsequent calls are no-ops on most
+    platforms (or will raise OSError which callers may choose to ignore).
+
+    Example:
+        >>> start_metrics_server(9000)
+    """
     start_http_server(port)
 
 

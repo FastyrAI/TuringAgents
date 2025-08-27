@@ -1,5 +1,4 @@
-"""
-Seed a minimal audit trail into Supabase/Postgres for e2e checks.
+"""Seed a minimal audit trail into Supabase/Postgres for e2e checks.
 
 Writes a synthetic message row and two events: "created" and "enqueued".
 

@@ -1,5 +1,6 @@
-"""
-Async load generator to publish N messages at M concurrency and report throughput/latency.
+"""Async load generator to publish N messages at M concurrency.
+
+Prints aggregate throughput and approximate publish latency.
 
 Example:
   ORG_ID=demo-org COUNT=200 CONCURRENCY=20 PRIORITY=2 uv run python -m scripts.load_test
