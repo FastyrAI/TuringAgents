@@ -1,3 +1,14 @@
+"""RabbitMQ helpers for connections, topology, and publishing.
+
+This module wraps ``aio_pika`` to provide a consistent interface for:
+- Establishing robust connections with optional TLS/mTLS support
+- Declaring per-organization request, retry, and DLQ topologies
+- Declaring per-agent response topologies
+- Publishing requests, retries, responses, and DLQ messages
+
+All functions are typed and documented with examples for clarity.
+"""
+
 import json
 import os
 import asyncio
@@ -19,9 +30,11 @@ PRIORITY_LEVELS = 10  # x-max-priority
 
 
 def _build_ssl_context(settings: Settings) -> Optional[ssl.SSLContext]:
-    """Build an SSLContext for TLS/mTLS if configured.
+    """Return an ``ssl.SSLContext`` for TLS/mTLS if configured, else ``None``.
 
-    Returns None if no TLS is required or configuration not provided.
+    Honors ``RABBITMQ_SSL_*`` flags in ``Settings``. When verification is
+    disabled (dev/local), hostname checks and certificate verification are
+    relaxed.
     """
     scheme = urlsplit(settings.rabbitmq_url).scheme.lower()
     wants_tls = scheme == "amqps" or any(
@@ -56,21 +69,19 @@ def _build_ssl_context(settings: Settings) -> Optional[ssl.SSLContext]:
 async def connect(amqp_url: str | None = None) -> AbstractRobustConnection:
     """Create a robust AMQP connection with optional TLS/mTLS and retry/backoff.
 
-    Why: In CI and during local startup, RabbitMQ may not be immediately ready.
-    A brief retry loop prevents flaky failures during topology initialization
-    and test setup while keeping runtime behavior unchanged.
+    Why:
+    - RabbitMQ may not be immediately ready in CI/local; a bounded retry loop
+      reduces flakiness during topology initialization and tests.
 
     Environment overrides:
-    - RABBITMQ_CONNECT_ATTEMPTS (default: 12)
-    - RABBITMQ_CONNECT_BASE_DELAY_MS (default: 500)
-    - RABBITMQ_CONNECT_MAX_DELAY_MS (default: 3000)
+    - ``RABBITMQ_CONNECT_ATTEMPTS`` (default: 12)
+    - ``RABBITMQ_CONNECT_BASE_DELAY_MS`` (default: 500)
+    - ``RABBITMQ_CONNECT_MAX_DELAY_MS`` (default: 3000)
 
     Example:
-        # Single call site for establishing connections
-        conn = await connect()
-        async with conn:
-            channel = await conn.channel()
-            ...
+        >>> conn = await connect()
+        >>> async with conn:
+        ...     channel = await conn.channel()
     """
     settings = Settings()
     url = amqp_url or settings.rabbitmq_url
@@ -98,7 +109,7 @@ async def connect(amqp_url: str | None = None) -> AbstractRobustConnection:
 
 
 async def declare_org_topology(channel: AbstractChannel, org_id: str) -> None:
-    """Declare request exchange/queue and DLQ for a single organization.
+    """Declare per-org request exchange/queue and DLQ exchange/queue.
 
     - Requests: direct exchange bound to a single priority queue
     - DLQ: direct exchange and queue for terminal failures
@@ -125,7 +136,7 @@ async def declare_org_topology(channel: AbstractChannel, org_id: str) -> None:
 
 
 async def declare_agent_response_topology(channel: AbstractChannel, agent_id: str) -> None:
-    """Declare per-agent response exchange and queue."""
+    """Declare per-agent response exchange and queue for the given agent id."""
     resp_exchange_name = f"agent.{agent_id}.responses"
     resp_queue_name = f"agent.{agent_id}.responses.q"
 
@@ -144,8 +155,8 @@ async def publish_request(
 ) -> None:
     """Publish a request to the org exchange with AMQP priority.
 
-    Uses the given channel; caller can enable confirms on the channel for
-    reliability (publisher confirms), and set mandatory flag if desired.
+    Uses the given channel. Callers can enable publisher confirms on the
+    channel for reliability and set ``mandatory=True``.
     """
     exchange = await channel.get_exchange(f"org.{org_id}.requests")
     amqp_priority = map_logical_priority_to_amqp(logical_priority)
@@ -185,8 +196,8 @@ async def publish_response(
 async def declare_org_retry_topology(channel: AbstractChannel, org_id: str, delays_ms: list[int] | None = None) -> None:
     """Declare retry exchange and per-delay queues that DLX back to requests.
 
-    Each delay queue holds the message for `x-message-ttl` milliseconds and then
-    dead-letters it back to the org's requests exchange.
+    Each delay queue holds the message for ``x-message-ttl`` milliseconds and
+    then dead-letters it back to the org's requests exchange.
     """
     if delays_ms is None:
         delays_ms = [1000, 2000, 4000, 8000]
@@ -219,7 +230,7 @@ async def schedule_retry(
     logical_priority: int,
     headers: Optional[HeadersType] = None,
 ) -> None:
-    """Send a failed message to the per-org retry exchange for a future redelivery."""
+    """Send a failed message to the per-org retry exchange for future redelivery."""
     exchange = await channel.get_exchange(f"org.{org_id}.retry")
     amqp_priority = map_logical_priority_to_amqp(logical_priority)
     body = json.dumps(message, separators=(",", ":")).encode("utf-8")

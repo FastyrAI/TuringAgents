@@ -1,3 +1,9 @@
+"""Peek a single response from an agent's response queue and print JSON.
+
+Usage:
+  AGENT_ID=demo-agent uv run python -m scripts.peek_responses
+"""
+
 import asyncio
 import json
 import os

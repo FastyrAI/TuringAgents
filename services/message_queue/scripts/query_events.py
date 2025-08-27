@@ -1,5 +1,4 @@
-"""
-Query and print ordered lifecycle events for a message.
+"""Query and print ordered lifecycle events for a message.
 
 Usage:
   - Without args: infers last message_id from `.worker.log` (or last event)
@@ -19,6 +18,7 @@ from supabase import create_client
 
 
 def read_last_message_id_from_worker_log(log_path: Path) -> Optional[str]:
+    """Return the last seen message_id from a worker log if present."""
     if not log_path.exists():
         return None
     pattern = re.compile(r"Worker received message ([a-f0-9-]+)")
@@ -34,6 +34,7 @@ def read_last_message_id_from_worker_log(log_path: Path) -> Optional[str]:
 
 
 def resolve_message_id(client, explicit_message_id: Optional[str]) -> Optional[str]:
+    """Resolve message_id from CLI arg, worker log, or latest event row."""
     if explicit_message_id:
         return explicit_message_id
     mid = read_last_message_id_from_worker_log(Path(".worker.log"))

@@ -1,7 +1,8 @@
 """Poison message detection.
 
-Tracks repeated failures of the same dedup_key and quarantines after a
-threshold. Uses Supabase to persist counters (simple implementation).
+Tracks repeated failures for the same ``dedup_key`` and triggers quarantine
+once a configurable threshold is reached. Counters are stored in Postgres via
+SQLAlchemy and read during failure handling to decide whether to quarantine.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from libs.orm_models import PoisonCounter
 
 
 def _threshold() -> int:
+    """Return the configured poison threshold with a safe default."""
     try:
         return Settings().poison_threshold
     except Exception:
@@ -24,6 +26,10 @@ def _threshold() -> int:
 
 
 async def increment_failure(org_id: str, dedup_key: str) -> int:
+    """Increment and return the current failure count for a message key.
+
+    Returns 1 on first failure, and best-effort values on errors.
+    """
     try:
         async with get_session() as session:
             res = await session.execute(
@@ -44,6 +50,7 @@ async def increment_failure(org_id: str, dedup_key: str) -> int:
 
 
 async def should_quarantine(org_id: str, dedup_key: str) -> bool:
+    """Return True when the failure count is at or above the threshold."""
     try:
         async with get_session() as session:
             res = await session.execute(

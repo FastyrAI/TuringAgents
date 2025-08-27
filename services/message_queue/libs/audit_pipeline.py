@@ -1,3 +1,14 @@
+"""High-level audit pipeline helpers for common message lifecycle transitions.
+
+These functions wrap the lower-level ``libs.audit`` helpers to perform the
+appropriate upserts and event writes for common state changes (created,
+dequeued, processing, completed, failed->retry, dead-lettered, etc.).
+
+Usage example:
+    >>> await audit_created_enqueued(message_dict, org_id)
+    >>> await audit_dequeued_processing(payload, org_id, worker_id)
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -27,6 +38,7 @@ from libs.constants import (
 
 
 async def audit_created_enqueued(message: dict[str, Any], org_id: str) -> None:
+    """Record created+enqueued audit and upsert initial message state."""
     await upsert_message(
         MessageRecord(
             message_id=message["message_id"],
@@ -57,6 +69,7 @@ async def audit_created_enqueued(message: dict[str, Any], org_id: str) -> None:
 
 
 async def audit_dequeued_processing(payload: dict[str, Any], org_id: str, worker_id: str) -> None:
+    """Record dequeued+processing audit and upsert processing state."""
     await record_message_event(
         MessageEventRecord(
             message_id=payload.get("message_id"),
@@ -87,6 +100,7 @@ async def audit_dequeued_processing(payload: dict[str, Any], org_id: str, worker
 
 
 async def audit_completed(payload: dict[str, Any], org_id: str, worker_id: str) -> None:
+    """Record completed audit and upsert final state to COMPLETED."""
     await record_message_event(
         MessageEventRecord(
             message_id=payload.get("message_id"),
@@ -109,6 +123,7 @@ async def audit_completed(payload: dict[str, Any], org_id: str, worker_id: str) 
 
 
 async def audit_failed_then_retry(payload: dict[str, Any], org_id: str, error: Exception, next_retry_count: int, delay_ms: int) -> None:
+    """Record failure audit, upsert FAILED/RETRYING, and record retry schedule."""
     await record_message_event(
         MessageEventRecord(
             message_id=payload.get("message_id"),
@@ -150,6 +165,7 @@ async def audit_failed_then_retry(payload: dict[str, Any], org_id: str, error: E
 
 
 async def audit_dead_letter(payload: dict[str, Any], org_id: str, error: Exception) -> None:
+    """Record dead-letter audit, write DLQ row, and upsert DEAD_LETTERED."""
     await record_message_event(
         MessageEventRecord(
             message_id=payload.get("message_id"),

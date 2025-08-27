@@ -1,5 +1,4 @@
-"""
-Batch producer: publishes N messages in batches of size B.
+"""Batch producer: publish N messages in batches of size B.
 
 Example:
   ORG_ID=demo-org COUNT=1000 BATCH_SIZE=100 PRIORITY=2 uv run python -m scripts.producer_batch

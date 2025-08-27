@@ -1,6 +1,7 @@
 """Prometheus metrics and a tiny HTTP server to expose them.
 
-Call `start_metrics_server(port)` once in a process to expose /metrics.
+Call ``start_metrics_server(port)`` once per process to expose ``/metrics``.
+Modules import and increment these counters/histograms directly.
 """
 
 from __future__ import annotations
@@ -61,6 +62,11 @@ RATE_LIMIT_WAIT_SECONDS = Histogram(
     "rate_limit_wait_seconds", "Seconds waited due to token-bucket limiting", buckets=(0.001, 0.01, 0.05, 0.1, 0.5, 1, 2)
 )
 
+# Backpressure/management metrics
+MGMT_API_ERRORS_TOTAL = Counter(
+    "mgmt_api_errors_total", "Total errors contacting RabbitMQ management API", ["operation"]
+)
+
 # Audit batching metrics
 AUDIT_EVENT_ENQUEUED_TOTAL = Counter(
     "audit_event_enqueued_total",
@@ -89,6 +95,14 @@ AUDIT_EVENT_WRITE_SECONDS = Histogram(
 
 
 def start_metrics_server(port: int = 9000) -> None:
+    """Start an HTTP server that exposes Prometheus metrics at ``/metrics``.
+
+    Safe to call multiple times per process; subsequent calls are no-ops on most
+    platforms (or will raise OSError which callers may choose to ignore).
+
+    Example:
+        >>> start_metrics_server(9000)
+    """
     start_http_server(port)
 
 
