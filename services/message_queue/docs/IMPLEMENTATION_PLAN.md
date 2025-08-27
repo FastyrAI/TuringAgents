@@ -10,6 +10,7 @@
 - Step 1.3 — **DLQ retention + replay**: Configurable retention (e.g., 90 days) purge job for `dlq_messages`. Improve replay UX (`--dry-run`, filters, batch progress). Metrics/tests.
 - Step 1.4 — **Audit coverage + batching**: Add `promoted`, `conflict_*` events. Batch `message_events` writes (100 events or 1s). Metrics/tests.
 - Step 1.5 — **Worker concurrency**: Configurable concurrency/prefetch for org‑level parallelism; remove any per‑agent locking assumptions; document best‑effort ordering.
+  - Implemented: Added `WORKER_PREFETCH` (AMQP QoS) and `WORKER_CONCURRENCY` (semaphore) to bound effective concurrency per worker; responses are routed per-message `agent_id` with fallback to worker default; ADR/README updated to emphasize best‑effort ordering.
 
 ### Milestone 2 — Throughput and backpressure
 - Step 2.1 — **Time‑based promotion**: TTL/DLX chain or scheduler for P3→P2 (30s), P2→P1 (15s), P1→P0 (5s). Record `promoted` events.
@@ -40,5 +41,4 @@
 
 ### Notes
 - This plan reflects the ADR update: agent‑managed serialization and best‑effort ordering at the queue layer.
-
 

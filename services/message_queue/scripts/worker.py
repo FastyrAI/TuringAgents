@@ -64,7 +64,37 @@ Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
 class Worker:
-    """Message worker bound to an org and emitting responses for a given agent."""
+    """Asynchronous message worker scoped to a single organization.
+
+    Purpose:
+    - Consume the organization's priority request queue and process messages
+    - Emit responses to per-agent response queues
+    - Handle retries, DLQ, metrics and tracing
+
+    Concurrency model:
+    - Concurrency is bounded by two independent knobs:
+      1) `WORKER_PREFETCH` (AMQP QoS): how many messages the broker will deliver without ack
+      2) `WORKER_CONCURRENCY` (semaphore): max number of in-flight message handlers per worker process
+    - Effective concurrency is `min(WORKER_PREFETCH, WORKER_CONCURRENCY)`
+    - Ordering is best-effort only; agents must self-serialize when required
+
+    Response routing:
+    - Responses are routed to `agent.<agent_id>.responses` based on the message payload's `agent_id`
+      (fallback to the worker's `agent_id` when payload is missing the field for backward compatibility).
+
+    Example:
+    ```python
+    # Run a worker locally with higher throughput
+    os.environ["WORKER_PREFETCH"] = "32"
+    os.environ["WORKER_CONCURRENCY"] = "16"
+    await Worker(org_id="demo-org", agent_id="demo-agent").run()
+    ```
+    Properties:
+    - `org_id`: Organization whose request queue this worker consumes
+    - `agent_id`: Default agent id used for routing/audit when payload agent is missing
+    - `retry_delays`: Exponential backoff schedule in milliseconds
+    - Internal semaphore and per-agent declaration cache
+    """
 
     def __init__(self, org_id: str, agent_id: str):
         self.org_id = org_id
@@ -72,6 +102,10 @@ class Worker:
         self._stopping = asyncio.Event()
         # Exponential backoff delays; can be configured per deployment
         self.retry_delays = DEFAULT_RETRY_DELAYS_MS
+        # Set at runtime in run() when settings are available
+        self._sem: asyncio.Semaphore | None = None
+        # Cache of agents whose response topology has been declared in this process
+        self._declared_agents: set[str] = set()
         self.handlers: Dict[str, Callable[[dict[str, Any]], Any]] = {
             "agent_message": self.handle_agent_message,
             "model_call": self.handle_passthrough,
@@ -84,7 +118,11 @@ class Worker:
         }
 
     async def run(self) -> None:
-        """Connect to RabbitMQ and begin consuming the org queue."""
+        """Connect to RabbitMQ and begin consuming the org queue.
+
+        Starts metrics and tracing, sets QoS/prefetch and configures a concurrency
+        semaphore to bound in-flight message handlers.
+        """
         # Start Prometheus metrics server (if not already started in this process)
         settings = Settings()
         port = settings.metrics_port
@@ -102,6 +140,9 @@ class Worker:
         start_tracing("ta-worker")
         self._tracer = get_tracer("ta-worker")
 
+        # Initialize concurrency semaphore
+        self._sem = asyncio.Semaphore(settings.worker_concurrency)
+
         connection = await connect(settings.rabbitmq_url)
         async with connection:
             channel = await connection.channel()
@@ -113,6 +154,7 @@ class Worker:
             # Declare org request/DLQ topology and ensure agent response queues exist
             await declare_org_topology(channel, self.org_id)
             await declare_agent_response_topology(channel, self.agent_id)
+            self._declared_agents.add(self.agent_id)
 
             queue = await channel.get_queue(f"org.{self.org_id}.requests.q")
             print(f"Worker consuming org queue: org.{self.org_id}.requests.q -> agent {self.agent_id}")
@@ -129,7 +171,15 @@ class Worker:
             await asyncio.sleep(2)
 
     async def _on_message(self, message: AbstractIncomingMessage) -> None:
-        """Core processing lifecycle for a single message."""
+        """Core processing lifecycle for a single message.
+
+        Uses a semaphore to enforce `WORKER_CONCURRENCY` in-flight handlers.
+        """
+        # Guard: ensure semaphore is initialized
+        if self._sem is None:
+            self._sem = asyncio.Semaphore(1)
+
+        await self._sem.acquire()
         start_ts = time.perf_counter()
         async with message.process(requeue=False):
             try:
@@ -270,6 +320,11 @@ class Worker:
                     WORKER_DLQ_TOTAL.labels(type=p.get("type")).inc()
             finally:
                 WORKER_PROCESS_LATENCY_SECONDS.observe(time.perf_counter() - start_ts)
+                # Release concurrency slot
+                try:
+                    self._sem.release()
+                except Exception:
+                    pass
 
     async def _emit_result(self, orig: dict[str, Any], result: Any) -> None:
         """Publish a non-streaming result to the agent response queue.
@@ -283,8 +338,10 @@ class Worker:
         connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, payload)
-            print(f"Worker emitted result for {orig.get('message_id')} -> agent {self.agent_id}")
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(f"Worker emitted result for {orig.get('message_id')} -> agent {dest_agent}")
         WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="result").inc()
 
     async def _emit_error(self, message: AbstractIncomingMessage, exc: Exception) -> None:
@@ -300,8 +357,10 @@ class Worker:
         connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, error_payload)
-            print(f"Worker emitted error for {error_payload.get('request_id')} -> agent {self.agent_id}")
+            dest_agent = self._get_dest_agent(orig or {})
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, error_payload)
+            print(f"Worker emitted error for {error_payload.get('request_id')} -> agent {dest_agent}")
         WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="error").inc()
 
     async def _emit_acknowledgment(self, orig: dict[str, Any]) -> None:
@@ -316,8 +375,10 @@ class Worker:
         connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, payload)
-            print(f"Worker emitted acknowledgment for {orig.get('message_id')} -> agent {self.agent_id}")
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(f"Worker emitted acknowledgment for {orig.get('message_id')} -> agent {dest_agent}")
         WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="acknowledgment").inc()
 
     async def _emit_progress(self, orig: dict[str, Any], progress_percent: int, status: str | None = None) -> None:
@@ -329,8 +390,10 @@ class Worker:
         connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, payload)
-            print(f"Worker emitted progress {progress_percent}% for {orig.get('message_id')} -> agent {self.agent_id}")
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(f"Worker emitted progress {progress_percent}% for {orig.get('message_id')} -> agent {dest_agent}")
         WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="progress").inc()
 
     async def _emit_stream_chunk(self, orig: dict[str, Any], chunk: Any, chunk_index: int) -> None:
@@ -342,9 +405,11 @@ class Worker:
         connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, payload)
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
             print(
-                f"Worker emitted stream_chunk[{chunk_index}] for {orig.get('message_id')} -> agent {self.agent_id}"
+                f"Worker emitted stream_chunk[{chunk_index}] for {orig.get('message_id')} -> agent {dest_agent}"
             )
         WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="stream_chunk").inc()
         STREAM_CHUNK_PUBLISHED_TOTAL.labels(agent_id=self.agent_id).inc()
@@ -358,11 +423,36 @@ class Worker:
         connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, payload)
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
             print(
-                f"Worker emitted stream_complete ({total_chunks} chunks) for {orig.get('message_id')} -> agent {self.agent_id}"
+                f"Worker emitted stream_complete ({total_chunks} chunks) for {orig.get('message_id')} -> agent {dest_agent}"
             )
         WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="stream_complete").inc()
+
+    def _get_dest_agent(self, orig: dict[str, Any]) -> str:
+        """Return the target agent id for a response.
+
+        Uses the `agent_id` in the original message payload when present, or
+        falls back to this worker's default `agent_id` for backwards compatibility.
+
+        Example:
+            dest = self._get_dest_agent({"agent_id": "a1"})  # -> "a1"
+        """
+        try:
+            return str(orig.get("agent_id") or self.agent_id)
+        except Exception:
+            return self.agent_id
+
+    async def _ensure_response_topology(self, channel, agent_id: str) -> None:
+        """Declare the agent response exchange/queue once per process for a given agent.
+
+        This avoids repeated declarations and ensures idempotent setup before publishing.
+        """
+        if agent_id not in self._declared_agents:
+            await declare_agent_response_topology(channel, agent_id)
+            self._declared_agents.add(agent_id)
 
     async def handle_agent_message(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Example business logic for an agent-local message type.
