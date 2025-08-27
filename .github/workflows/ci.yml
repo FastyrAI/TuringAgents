@@ -41,7 +41,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Sync deps
-        run: uv venv && . .venv/bin/activate && uv sync
+        run: uv venv && . .venv/bin/activate && uv sync --extra db
         working-directory: services/message_queue
       - name: E2E - init topology
         env:
@@ -163,7 +163,6 @@ jobs:
           print(json.dumps(data))
           assert any(e.get('event_type') in ('created','enqueued') for e in data), 'No audit events found'
           PY
-        working-directory: services/message_queue
         working-directory: services/message_queue
 
 
