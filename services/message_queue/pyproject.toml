@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 db = ["asyncpg==0.29.0"]
+test = ["pytest==8.3.3"]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]

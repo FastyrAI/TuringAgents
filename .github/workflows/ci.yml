@@ -18,7 +18,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Sync deps
-        run: uv venv && . .venv/bin/activate && uv sync --extra db
+        run: uv venv && . .venv/bin/activate && uv sync --extra test
         working-directory: services/message_queue
       - name: Run tests
         run: . .venv/bin/activate && pytest -q
