@@ -19,6 +19,7 @@ from libs.config import Settings
 from libs.rabbit import declare_agent_response_topology, connect
 from libs.tracing import start_tracing, get_tracer, extract_context_from_headers
 from opentelemetry import context  # type: ignore
+from libs.metrics import COORDINATOR_FORWARDED_TOTAL
 
 
 class AgentCoordinator:
@@ -66,6 +67,9 @@ class AgentCoordinator:
                 if rid is not None:
                     span.set_attribute("request_id", rid)
                 await self.local_agents[agent_id].put(payload)
+                # increment forwarded metric by response type (if present)
+                resp_type = payload.get("type") if isinstance(payload.get("type"), str) else "unknown"
+                COORDINATOR_FORWARDED_TOTAL.labels(type=resp_type).inc()
         finally:
             context.detach(token)
         print(f"Coordinator routed response for {agent_id}: {payload.get('request_id')}")
