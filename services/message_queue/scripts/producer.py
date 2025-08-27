@@ -16,6 +16,7 @@ from libs.rabbit import publish_request, declare_org_topology, connect
 from libs.rate_limit import get_rate_limiter
 from libs.validation import validate_message, now_iso
 from libs.audit_pipeline import audit_created_enqueued
+from libs.audit import flush_audit_events
 from libs.backpressure import get_queue_depth, decide_throttle
 from libs.tracing import start_tracing, get_tracer, inject_headers
 
@@ -70,6 +71,8 @@ async def main() -> None:
             or (mode == "emergency" and priority != 0)
         ):
             print(f"throttled: mode={mode} priority=P{priority} depth={depth}")
+            # Ensure any buffered audit events are flushed before exiting early
+            await flush_audit_events()
             return
 
         # Audit (created + enqueued) prior to actual publish
@@ -91,6 +94,9 @@ async def main() -> None:
                 span.record_exception(e)
                 span.set_attribute("error", True)
                 raise
+            finally:
+                # Ensure buffered audit events are flushed before process exit
+                await flush_audit_events()
 
 
 if __name__ == "__main__":
