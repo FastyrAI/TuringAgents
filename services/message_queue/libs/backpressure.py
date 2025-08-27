@@ -15,7 +15,7 @@ Usage example:
 from __future__ import annotations
 
 import os
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Optional
 
 import httpx
 
@@ -53,12 +53,18 @@ class BackpressureConfig:
         self.emergency_threshold = emergency_threshold
 
 
-def get_queue_depth(org_id: str) -> int:
+def get_queue_depth(org_id: str, *, strict: bool = False) -> int:
     """Return current queue depth via RabbitMQ Management API.
 
     Requires RabbitMQ Management to be enabled and reachable at ``RABBITMQ_MGMT_URL``.
-    Credentials are read from ``RABBITMQ_USER``/``RABBITMQ_PASS``. On any error,
-    returns 0 to fail-open.
+    Credentials are read from ``RABBITMQ_USER``/``RABBITMQ_PASS``.
+
+    Behavior:
+    - strict=False (default): fail-open and return 0 on errors to avoid blocking
+      producers/workers in environments where the management API is disabled or
+      transiently unavailable (e.g., local dev, Supabase-only CI).
+    - strict=True: raise exceptions on failure, suitable for autoscalers/infra
+      components that must react to outages instead of silently degrading.
     """
     base = os.getenv("RABBITMQ_MGMT_URL", "http://localhost:15672")
     user = os.getenv("RABBITMQ_USER", "guest")
@@ -69,10 +75,21 @@ def get_queue_depth(org_id: str) -> int:
     try:
         r = httpx.get(url, auth=(user, pw), timeout=5)
         if r.status_code != 200:
+            if strict:
+                raise RuntimeError(f"mgmt api http {r.status_code}")
+            from libs.metrics import MGMT_API_ERRORS_TOTAL
+            MGMT_API_ERRORS_TOTAL.labels(operation="get_queue_depth").inc()
             return 0
         data = r.json()
         return int(data.get("messages", 0))
-    except Exception:
+    except Exception as exc:
+        if strict:
+            raise
+        try:
+            from libs.metrics import MGMT_API_ERRORS_TOTAL
+            MGMT_API_ERRORS_TOTAL.labels(operation="get_queue_depth").inc()
+        except Exception:
+            pass
         return 0
 
 
