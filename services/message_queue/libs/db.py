@@ -30,8 +30,6 @@ from typing import AsyncIterator
 from typing import Any
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # type: ignore
 
-from libs.config import Settings
-
 
 _engine: Any = None
 _session_factory: Any = None
@@ -40,10 +38,17 @@ _session_factory: Any = None
 def get_engine() -> Any:
     """Return a process-wide async SQLAlchemy engine, creating it if needed.
 
-    The engine is created lazily from either ``DATABASE_URL`` or the
-    Supabase URL in ``Settings``. URLs of the form ``postgres://`` or
-    ``postgresql://`` are normalized to ``postgresql+asyncpg://`` for the
-    ``asyncpg`` driver.
+    The engine is created lazily from a database connection string sourced from
+    environment variables. The following variables are checked in order:
+        - ``DATABASE_URL``
+        - ``SUPABASE_DB_URL``
+        - ``SUPABASE_DB_CONNECTION``
+        - ``SUPABASE_POSTGRES_URL``
+        - ``POSTGRES_URL``
+        - ``POSTGRES_CONNECTION_STRING``
+
+    URLs of the form ``postgres://`` or ``postgresql://`` are normalized to
+    ``postgresql+asyncpg://`` for the ``asyncpg`` driver.
 
     Returns:
         Any: A SQLAlchemy async engine instance.
@@ -55,14 +60,36 @@ def get_engine() -> Any:
     """
     global _engine, _session_factory
     if _engine is None:
-        settings = Settings()
+        # Resolve database URL from common environment variable names
+        candidate_env_keys = (
+            "DATABASE_URL",
+            "SUPABASE_DB_URL",
+            "SUPABASE_DB_CONNECTION",
+            "SUPABASE_POSTGRES_URL",
+            "POSTGRES_URL",
+            "POSTGRES_CONNECTION_STRING",
+        )
+        db_url: str = ""
+        for key in candidate_env_keys:
+            value = os.getenv(key, "").strip()
+            if value:
+                db_url = value
+                break
+
+        if not db_url:
+            # Provide a clear, actionable error for CI/e2e environments
+            raise ValueError(
+                "Database URL is not configured. Set one of: "
+                + ", ".join(candidate_env_keys)
+            )
+
         # Support postgres:// and postgresql:// URLs. For asyncpg, prefix with postgresql+asyncpg
-        db_url = os.getenv("DATABASE_URL", "") or settings.supabase_url.replace("postgresql://", "postgresql+asyncpg://")
         if not db_url.startswith("postgresql+asyncpg://"):
             if db_url.startswith("postgresql://"):
                 db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
             elif db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+
         _engine = create_async_engine(db_url, pool_pre_ping=True)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
     return _engine
