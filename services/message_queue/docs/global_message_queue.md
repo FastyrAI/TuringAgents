@@ -90,14 +90,18 @@ Example Implementation:
 3.1 Worker model: Single worker vs worker pool vs specialized workers per message type
 Decision: Homogeneous worker pool. All workers check P0→P1→P2→P3 in priority order. Auto-scale based on queue depth and promotion rates. No dedicated workers for specific priorities.
 3.2 Concurrency handling: Pure sequential vs selective parallelization (which operations can run in parallel?)
-Decision: Agent-level serialization with org-level parallelism
-Each agent processes one operation at a time (human-like behavior)
-Multiple agents within an org can work in parallel
-Workers can process messages from different agents simultaneously
-No complex dependency tracking needed (agent serialization handles it)
-Max concurrent messages = number of active agents in org
-Example:
- # Agent executes seriallyclass Agent:    async def execute_task(self):        # One operation at a time        result1 = await self.queue_and_wait({"type": "model_call"})        result2 = await self.queue_and_wait({"type": "tool_call"})        result3 = await self.queue_and_wait({"type": "memory_save"})# But multiple agents work in parallel# Org with 5 agents = up to 5 parallel operations
+Decision: Queue is concurrency-agnostic; agents self-serialize when needed. Org-level parallelism allowed. No queue-level per-agent FIFO or locking.
+Agents are responsible for enforcing any ordering/causality they require (e.g., awaiting responses, sequence numbers, local locks).
+Multiple agents within an org can work in parallel; workers may process messages from different agents simultaneously.
+No queue-enforced dependency tracking.
+
+Implementation knobs (M1.5):
+- Worker prefetch (AMQP QoS): `WORKER_PREFETCH` (default 10)
+- Worker in-flight handlers bound: `WORKER_CONCURRENCY` (default 10)
+- Effective concurrency ≈ `min(WORKER_PREFETCH, WORKER_CONCURRENCY)`
+- Best-effort ordering only; application/agent must serialize if required
+Example (agent-side serialization, optional):
+ # Agent enforces its own sequenceclass Agent:    async def execute_task(self):        result1 = await self.queue_and_wait({"type": "model_call"})        result2 = await self.queue_and_wait({"type": "tool_call"})        result3 = await self.queue_and_wait({"type": "memory_save"})
 
 
 3.3 Priority queues: Do some messages need expedited processing?
@@ -417,7 +421,7 @@ Supports multiple LLM providers with different rate limits
 
 Critical Technical Considerations
 Race Condition Prevention
-Your sequential processing eliminates many race conditions, but consider:
+Agent-managed sequencing reduces many race conditions, but consider:
 What about read-after-write consistency with the knowledge graph?
 How to handle concurrent user sessions modifying shared business knowledge?
 Agent discovery/registration race conditions
@@ -433,11 +437,10 @@ Message Ordering Guarantees
 FIFO per user vs global FIFO vs causal ordering
 How to maintain order while allowing some parallelization
 Handling out-of-order message arrivals from distributed agents
-Decision: FIFO per organization
-All operations within an organization are sequential
-Guarantees consistency for shared business data
-Simpler reasoning about state changes
-Different organizations process in parallel
+Decision: Best-effort ordering; no queue-level per-key FIFO guarantees
+Agents enforce ordering/causality as needed (e.g., per-agent/resource locks, sequence numbers)
+Different keys within an organization may process in parallel; priority and promotions can reorder globally
+Any per-key serialization is implemented at the agent/application layer, not the queue
 State Machine Design
 Each message type needs clear state transitions:
 QUEUED → PROCESSING → COMPLETED
@@ -460,15 +463,15 @@ Answer: Queue overhead must be <100ms for all operations. P0 (voice) requires <1
 Consistency model: Eventually consistent or strongly consistent?
 
 
-Answer: Strong consistency within organization via:
-Org-level FIFO queues (all operations serialized per org)
+Answer: Strong consistency is achieved at the application/agent layer via:
+Agent-managed sequencing and/or per-resource locks (not enforced by the queue)
 Branched knowledge graphs (isolation during execution)
-LLM-powered conflict resolution for parallel operations
+LLM-powered conflict resolution for cross-key parallel operations
 Atomic commits when goals complete
 Multi-tenancy: Separate queues per customer or shared with isolation?
 
 
-Answer: Separate queue per organization. Each org gets its own queue to ensure FIFO ordering and consistency within the organization.
+Answer: Separate queue per organization for isolation. Within an org, use sharded partitions keyed by agent/goal/resource to preserve per-key FIFO and allow parallelism; strict org-level FIFO is not enforced.
 Recovery time objective: How fast must you recover from failures?
 
 

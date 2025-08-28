@@ -38,6 +38,10 @@ kubectl -n "$NS" apply -f k8s/worker-deployment.yaml
 kubectl -n "$NS" rollout status deployment/ta-worker
 ```
 
+Environment knobs (tune for throughput vs fairness):
+- `WORKER_PREFETCH`: AMQP QoS prefetch per consumer (default 10). Higher values increase throughput but may increase per-message latency variance.
+- `WORKER_CONCURRENCY`: Max in-flight message handlers per worker process (default 10).
+
 ### (Optional) Enable autoscaling with KEDA
 1) Install KEDA (see docs: `https://keda.sh/docs/latest/deploy/`).
 2) Update `k8s/keda-scaledobject.yaml` (queueName per org) and apply:

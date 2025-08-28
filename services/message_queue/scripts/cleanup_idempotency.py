@@ -1,5 +1,4 @@
-"""
-Cleanup old idempotency keys to keep the table small.
+"""Cleanup old idempotency keys to keep the table small.
 
 Environment:
   - IDEMPOTENCY_TTL_DAYS (default 30)

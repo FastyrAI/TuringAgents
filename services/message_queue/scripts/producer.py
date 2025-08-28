@@ -11,12 +11,12 @@ import os
 import uuid
 from typing import Any
 
-import aio_pika
-
 from libs.config import Settings, parse_priority
-from libs.rabbit import publish_request, declare_org_topology
+from libs.rabbit import publish_request, declare_org_topology, connect
+from libs.rate_limit import get_rate_limiter
 from libs.validation import validate_message, now_iso
 from libs.audit_pipeline import audit_created_enqueued
+from libs.audit import flush_audit_events
 from libs.backpressure import get_queue_depth, decide_throttle
 from libs.tracing import start_tracing, get_tracer, inject_headers
 
@@ -49,7 +49,11 @@ async def main() -> None:
     validate_message(message)
 
     settings = Settings()
-    connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+    limiter = get_rate_limiter(settings)
+    # Rate limit before connecting to reduce connection churn under heavy load
+    if limiter is not None and settings.rate_limit_enabled:
+        await limiter.acquire(org_id=org_id, user_id="producer")
+    connection = await connect(settings.rabbitmq_url)
     async with connection:
         # For P1–P3 enable publisher confirms; P0 remains fire-and-forget
         channel = await connection.channel(publisher_confirms=(priority != 0))
@@ -67,6 +71,8 @@ async def main() -> None:
             or (mode == "emergency" and priority != 0)
         ):
             print(f"throttled: mode={mode} priority=P{priority} depth={depth}")
+            # Ensure any buffered audit events are flushed before exiting early
+            await flush_audit_events()
             return
 
         # Audit (created + enqueued) prior to actual publish
@@ -76,7 +82,7 @@ async def main() -> None:
         with tracer.start_as_current_span("publish") as span:
             span.set_attribute("message_id", message["message_id"])
             span.set_attribute("org_id", org_id)
-            headers = inject_headers({"message_id": message["message_id"]})
+            headers = inject_headers({"message_id": str(message["message_id"])})
             try:
                 await publish_request(channel, org_id, message, logical_priority=priority, headers=headers)
                 from libs.metrics import PUBLISH_ATTEMPT_TOTAL
@@ -88,6 +94,9 @@ async def main() -> None:
                 span.record_exception(e)
                 span.set_attribute("error", True)
                 raise
+            finally:
+                # Ensure buffered audit events are flushed before process exit
+                await flush_audit_events()
 
 
 if __name__ == "__main__":

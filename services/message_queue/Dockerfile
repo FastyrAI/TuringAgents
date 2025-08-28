@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir uv==0.4.20
 COPY pyproject.toml /app/
 COPY libs /app/libs
 COPY scripts /app/scripts
+COPY tests /app/tests
 
 # Install deps
 RUN uv venv && . .venv/bin/activate && uv sync
@@ -19,7 +20,9 @@ RUN uv venv && . .venv/bin/activate && uv sync
 # Default to worker
 ENV ORG_ID=demo-org \
     AGENT_ID=demo-agent \
-    METRICS_PORT=9000
+    METRICS_PORT=9000 \
+    WORKER_PREFETCH=32 \
+    WORKER_CONCURRENCY=16
 
 CMD ["bash", "-lc", ". .venv/bin/activate && python -m scripts.worker"]
 

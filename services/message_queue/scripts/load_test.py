@@ -1,5 +1,6 @@
-"""
-Async load generator to publish N messages at M concurrency and report throughput/latency.
+"""Async load generator to publish N messages at M concurrency.
+
+Prints aggregate throughput and approximate publish latency.
 
 Example:
   ORG_ID=demo-org COUNT=200 CONCURRENCY=20 PRIORITY=2 uv run python -m scripts.load_test
@@ -14,13 +15,16 @@ from statistics import mean
 import aio_pika
 
 from libs.config import RABBITMQ_URL, parse_priority
-from libs.rabbit import publish_request, declare_org_topology
+from libs.rabbit import publish_request, declare_org_topology, connect
 from libs.validation import validate_message, now_iso
 
 
-async def publish_one(channel, org_id: str, priority: int) -> float:
+from aio_pika.abc import AbstractChannel
+
+
+async def publish_one(channel: AbstractChannel, org_id: str, priority: int) -> float:
     start = time.perf_counter()
-    msg = {
+    msg: dict[str, object] = {
         "message_id": str(uuid.uuid4()),
         "version": "1.0.0",
         "org_id": org_id,
@@ -40,7 +44,7 @@ async def main() -> None:
     concurrency = int(os.getenv("CONCURRENCY", "10"))
     priority = parse_priority(os.getenv("PRIORITY", "2"))
 
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    connection = await connect(RABBITMQ_URL)
     async with connection:
         channel = await connection.channel()
         await declare_org_topology(channel, org_id)

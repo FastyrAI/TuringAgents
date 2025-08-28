@@ -1,0 +1,10 @@
+---
+description: How to document code using comments, docstrings and other mechanism in the code itself.
+globs:
+alwaysApply: true
+---
+
+- Every class, function, and method must be well documented using comments, and docstrings (or whatever alternative exists for the langauge). 
+- When writing the docstrings for functions and methods, describe what the function does, why it was created and how to use it. Additionally, give examples of it's usage.
+- Docstrings for classes must include what the purpose of the class is, a detailed description of when to use it, and example use cases when it should be used. The docstring should also include the methods and properties the class has.
+

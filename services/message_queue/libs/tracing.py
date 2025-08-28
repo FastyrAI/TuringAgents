@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Dict, Mapping, Any
 
-from opentelemetry import trace, context  # type: ignore
+from opentelemetry import trace  # type: ignore
 from opentelemetry.sdk.resources import Resource  # type: ignore
 from opentelemetry.sdk.trace import TracerProvider  # type: ignore
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor  # type: ignore
@@ -37,6 +37,11 @@ def start_tracing(service_name: str = "turing-agents") -> Tracer:
 
 
 def get_tracer(service_name: str = "turing-agents") -> Tracer:
+    """Return a tracer for the given service name.
+
+    Example:
+        >>> tracer = get_tracer("my-service")
+    """
     return trace.get_tracer(service_name)
 
 

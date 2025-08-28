@@ -1,3 +1,3 @@
-from .extractors import NLPProcessor
+from .extractors import  GeminiProcessor
 
-__all__ = ['NLPProcessor']
+__all__ = ['GeminiProcessor']

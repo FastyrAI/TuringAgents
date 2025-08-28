@@ -2,7 +2,7 @@
 Asynchronous org-scoped worker.
 
 - Consumes a single per-organization request queue (priority queue)
-- Serially processes messages and emits responses to per-agent response queues
+- Processes messages and emits responses to per-agent response queues
 - Handles retries via per-org delay queues and ships terminal failures to DLQ
 - Emits lifecycle audit events and upserts message state into Supabase
 """
@@ -14,7 +14,6 @@ import signal
 import time
 from typing import Any, Callable, Dict, Awaitable
 
-import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
 
 from libs.config import Settings
@@ -24,6 +23,7 @@ from libs.rabbit import (
     declare_agent_response_topology,
     schedule_retry,
     publish_to_dlq,
+    connect,
 )
 from libs.audit_pipeline import (
     audit_dequeued_processing,
@@ -40,6 +40,8 @@ from libs.metrics import (
     WORKER_RETRY_TOTAL,
     WORKER_DLQ_TOTAL,
     QUEUE_DEPTH,
+    WORKER_RESPONSE_PUBLISHED_TOTAL,
+    STREAM_CHUNK_PUBLISHED_TOTAL,
 )
 from libs.backpressure import get_queue_depth
 from libs.dedup import compute_dedup_key, mark_and_check
@@ -47,17 +49,51 @@ from libs.constants import EVENT_DUPLICATE_SKIPPED, STATUS_DUPLICATE
 from libs.tracing import start_tracing, get_tracer, extract_context_from_headers
 from opentelemetry import context  # type: ignore
 from libs.poison import increment_failure, should_quarantine
-from libs.audit import record_message_event, upsert_message
+from libs.audit import record_message_event, upsert_message  # type: ignore
+from libs.response_payloads import (
+    build_acknowledgment_payload,
+    build_progress_payload,
+    build_stream_chunk_payload,
+    build_stream_complete_payload,
+    build_result_payload,
+    build_error_payload,
+)
 
 
 Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
 class Worker:
-    """Message worker bound to an org and emitting responses for a given agent.
+    """Asynchronous message worker scoped to a single organization.
 
-    The design purposefully keeps one consumer per org queue to guarantee
-    per-org FIFO ordering (within same priority) as described in the ADR.
+    Purpose:
+    - Consume the organization's priority request queue and process messages
+    - Emit responses to per-agent response queues
+    - Handle retries, DLQ, metrics and tracing
+
+    Concurrency model:
+    - Concurrency is bounded by two independent knobs:
+      1) `WORKER_PREFETCH` (AMQP QoS): how many messages the broker will deliver without ack
+      2) `WORKER_CONCURRENCY` (semaphore): max number of in-flight message handlers per worker process
+    - Effective concurrency is `min(WORKER_PREFETCH, WORKER_CONCURRENCY)`
+    - Ordering is best-effort only; agents must self-serialize when required
+
+    Response routing:
+    - Responses are routed to `agent.<agent_id>.responses` based on the message payload's `agent_id`
+      (fallback to the worker's `agent_id` when payload is missing the field for backward compatibility).
+
+    Example:
+    ```python
+    # Run a worker locally with higher throughput
+    os.environ["WORKER_PREFETCH"] = "32"
+    os.environ["WORKER_CONCURRENCY"] = "16"
+    await Worker(org_id="demo-org", agent_id="demo-agent").run()
+    ```
+    Properties:
+    - `org_id`: Organization whose request queue this worker consumes
+    - `agent_id`: Default agent id used for routing/audit when payload agent is missing
+    - `retry_delays`: Exponential backoff schedule in milliseconds
+    - Internal semaphore and per-agent declaration cache
     """
 
     def __init__(self, org_id: str, agent_id: str):
@@ -66,6 +102,10 @@ class Worker:
         self._stopping = asyncio.Event()
         # Exponential backoff delays; can be configured per deployment
         self.retry_delays = DEFAULT_RETRY_DELAYS_MS
+        # Set at runtime in run() when settings are available
+        self._sem: asyncio.Semaphore | None = None
+        # Cache of agents whose response topology has been declared in this process
+        self._declared_agents: set[str] = set()
         self.handlers: Dict[str, Callable[[dict[str, Any]], Any]] = {
             "agent_message": self.handle_agent_message,
             "model_call": self.handle_passthrough,
@@ -78,7 +118,11 @@ class Worker:
         }
 
     async def run(self) -> None:
-        """Connect to RabbitMQ and begin consuming the org queue."""
+        """Connect to RabbitMQ and begin consuming the org queue.
+
+        Starts metrics and tracing, sets QoS/prefetch and configures a concurrency
+        semaphore to bound in-flight message handlers.
+        """
         # Start Prometheus metrics server (if not already started in this process)
         settings = Settings()
         port = settings.metrics_port
@@ -96,7 +140,10 @@ class Worker:
         start_tracing("ta-worker")
         self._tracer = get_tracer("ta-worker")
 
-        connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+        # Initialize concurrency semaphore
+        self._sem = asyncio.Semaphore(settings.worker_concurrency)
+
+        connection = await connect(settings.rabbitmq_url)
         async with connection:
             channel = await connection.channel()
             # Apply QoS/prefetch from Settings
@@ -107,6 +154,7 @@ class Worker:
             # Declare org request/DLQ topology and ensure agent response queues exist
             await declare_org_topology(channel, self.org_id)
             await declare_agent_response_topology(channel, self.agent_id)
+            self._declared_agents.add(self.agent_id)
 
             queue = await channel.get_queue(f"org.{self.org_id}.requests.q")
             print(f"Worker consuming org queue: org.{self.org_id}.requests.q -> agent {self.agent_id}")
@@ -123,7 +171,15 @@ class Worker:
             await asyncio.sleep(2)
 
     async def _on_message(self, message: AbstractIncomingMessage) -> None:
-        """Core processing lifecycle for a single message."""
+        """Core processing lifecycle for a single message.
+
+        Uses a semaphore to enforce `WORKER_CONCURRENCY` in-flight handlers.
+        """
+        # Guard: ensure semaphore is initialized
+        if self._sem is None:
+            self._sem = asyncio.Semaphore(1)
+
+        await self._sem.acquire()
         start_ts = time.perf_counter()
         async with message.process(requeue=False):
             try:
@@ -161,6 +217,9 @@ class Worker:
                 if payload.get("context", {}).get("force_error"):
                     raise RuntimeError("Forced error for retry testing")
 
+                # Emit acknowledgment immediately so agents can reflect progress
+                await self._emit_acknowledgment(payload)
+
                 # Use incoming trace context from headers to continue the trace
                 ctx = extract_context_from_headers(message.headers)
                 token = context.attach(ctx)
@@ -168,8 +227,32 @@ class Worker:
                     with self._tracer.start_as_current_span("process") as span:
                         span.set_attribute("message_id", payload.get("message_id"))
                         span.set_attribute("org_id", self.org_id)
+                        # Optional progress demo
+                        context_map = payload.get("context", {}) or {}
+                        progress_updates = context_map.get("progress_updates")
+                        if progress_updates and isinstance(progress_updates, (list, tuple)):
+                            for p in progress_updates:
+                                try:
+                                    await self._emit_progress(payload, int(p), status="working")
+                                except Exception:
+                                    # Best-effort progress
+                                    pass
+                        elif context_map.get("progress_demo"):
+                            await self._emit_progress(payload, 50, status="halfway")
+
+                        # Execute handler
                         result = await handler(payload)
-                    await self._emit_result(payload, result)
+
+                        # Optional streaming demo: emit chunks instead of a single result
+                        if context_map.get("stream_demo"):
+                            chunks = context_map.get("stream_chunks")
+                            if not isinstance(chunks, (list, tuple)):
+                                chunks = ["chunk-0", "chunk-1"]
+                            for idx, chunk in enumerate(chunks):
+                                await self._emit_stream_chunk(payload, chunk, idx)
+                            await self._emit_stream_complete(payload, total_chunks=len(chunks))
+                        else:
+                            await self._emit_result(payload, result)
                     await audit_completed(payload, self.org_id, self.agent_id)
                 finally:
                     context.detach(token)
@@ -178,6 +261,7 @@ class Worker:
             except Exception as exc:  # noqa: BLE001
                 # Failure path: record failure first, then retry or dead-letter
                 print(f"Worker error: {exc}")
+                p: dict[str, Any]
                 try:
                     p = json.loads(message.body)
                 except Exception:
@@ -214,7 +298,7 @@ class Worker:
                 if retry_count < max_retries:
                     delay = next_delay_ms(retry_count, self.retry_delays)
                     # Publish to delay queue so it DLXes back to requests later
-                    connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+                    connection = await connect(Settings().rabbitmq_url)
                     async with connection:
                         channel = await connection.channel()
                         await schedule_retry(
@@ -228,7 +312,7 @@ class Worker:
                     WORKER_RETRY_TOTAL.labels(type=p.get("type")).inc()
                 else:
                     # Terminal failure: ship to DLQ and record audit entries
-                    connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+                    connection = await connect(Settings().rabbitmq_url)
                     async with connection:
                         channel = await connection.channel()
                         await publish_to_dlq(channel, org, p)
@@ -236,41 +320,139 @@ class Worker:
                     WORKER_DLQ_TOTAL.labels(type=p.get("type")).inc()
             finally:
                 WORKER_PROCESS_LATENCY_SECONDS.observe(time.perf_counter() - start_ts)
+                # Release concurrency slot
+                try:
+                    self._sem.release()
+                except Exception:
+                    pass
 
     async def _emit_result(self, orig: dict[str, Any], result: Any) -> None:
-        """Publish the final result for a processed message to the agent response queue."""
-        payload = {
-            "request_id": orig.get("message_id"),
-            "type": "result",
-            "result": result,
-            "timestamp": orig.get("created_at"),
-        }
-        connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+        """Publish a non-streaming result to the agent response queue.
+
+        Why: Completes simple operations that don't need streaming.
+
+        Example usage:
+            await self._emit_result(orig_payload, {"ok": True})
+        """
+        payload = build_result_payload(orig, result)
+        connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, payload)
-            print(f"Worker emitted result for {orig.get('message_id')} -> agent {self.agent_id}")
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(f"Worker emitted result for {orig.get('message_id')} -> agent {dest_agent}")
+        WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="result").inc()
 
     async def _emit_error(self, message: AbstractIncomingMessage, exc: Exception) -> None:
-        """Publish an error response for the current message to the agent response queue."""
+        """Publish an error response to the agent response queue.
+
+        Why: Surfaces failures to agents and end users.
+        """
         try:
-            payload = json.loads(message.body)
-            request_id = payload.get("message_id")
+            orig = json.loads(message.body)
         except Exception:  # noqa: BLE001
-            request_id = None
-        error_payload = {
-            "request_id": request_id,
-            "type": "error",
-            "error": {
-                "type": exc.__class__.__name__,
-                "message": str(exc),
-            },
-        }
-        connection = await aio_pika.connect_robust(Settings().rabbitmq_url)
+            orig = None
+        error_payload = build_error_payload(orig, exc)
+        connection = await connect(Settings().rabbitmq_url)
         async with connection:
             channel = await connection.channel()
-            await publish_response(channel, self.agent_id, error_payload)
-            print(f"Worker emitted error for {request_id} -> agent {self.agent_id}")
+            dest_agent = self._get_dest_agent(orig or {})
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, error_payload)
+            print(f"Worker emitted error for {error_payload.get('request_id')} -> agent {dest_agent}")
+        WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="error").inc()
+
+    async def _emit_acknowledgment(self, orig: dict[str, Any]) -> None:
+        """Publish an acknowledgment indicating the request was received/started.
+
+        Why: Enables responsive UIs and agent orchestration.
+
+        Example:
+            await self._emit_acknowledgment(orig)
+        """
+        payload = build_acknowledgment_payload(orig)
+        connection = await connect(Settings().rabbitmq_url)
+        async with connection:
+            channel = await connection.channel()
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(f"Worker emitted acknowledgment for {orig.get('message_id')} -> agent {dest_agent}")
+        WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="acknowledgment").inc()
+
+    async def _emit_progress(self, orig: dict[str, Any], progress_percent: int, status: str | None = None) -> None:
+        """Publish a progress update for a long-running operation.
+
+        Why: Allows UIs to render progress bars and agents to sequence tasks.
+        """
+        payload = build_progress_payload(orig, progress_percent, status)
+        connection = await connect(Settings().rabbitmq_url)
+        async with connection:
+            channel = await connection.channel()
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(f"Worker emitted progress {progress_percent}% for {orig.get('message_id')} -> agent {dest_agent}")
+        WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="progress").inc()
+
+    async def _emit_stream_chunk(self, orig: dict[str, Any], chunk: Any, chunk_index: int) -> None:
+        """Publish a streaming chunk for a streaming operation.
+
+        Why: Implements low-latency delivery of partial results.
+        """
+        payload = build_stream_chunk_payload(orig, chunk, chunk_index)
+        connection = await connect(Settings().rabbitmq_url)
+        async with connection:
+            channel = await connection.channel()
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(
+                f"Worker emitted stream_chunk[{chunk_index}] for {orig.get('message_id')} -> agent {dest_agent}"
+            )
+        WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="stream_chunk").inc()
+        STREAM_CHUNK_PUBLISHED_TOTAL.labels(agent_id=self.agent_id).inc()
+
+    async def _emit_stream_complete(self, orig: dict[str, Any], total_chunks: int) -> None:
+        """Publish a stream completion marker to signal end of streaming.
+
+        Why: Lets agents flush buffers and mark completion without ambiguity.
+        """
+        payload = build_stream_complete_payload(orig, total_chunks)
+        connection = await connect(Settings().rabbitmq_url)
+        async with connection:
+            channel = await connection.channel()
+            dest_agent = self._get_dest_agent(orig)
+            await self._ensure_response_topology(channel, dest_agent)
+            await publish_response(channel, dest_agent, payload)
+            print(
+                f"Worker emitted stream_complete ({total_chunks} chunks) for {orig.get('message_id')} -> agent {dest_agent}"
+            )
+        WORKER_RESPONSE_PUBLISHED_TOTAL.labels(type="stream_complete").inc()
+
+    def _get_dest_agent(self, orig: dict[str, Any]) -> str:
+        """Return the target agent id for a response.
+
+        Uses the `agent_id` in the original message payload when present, or
+        falls back to this worker's default `agent_id` for backwards compatibility.
+
+        Example:
+            dest = self._get_dest_agent({"agent_id": "a1"})  # -> "a1"
+        """
+        try:
+            return str(orig.get("agent_id") or self.agent_id)
+        except Exception:
+            return self.agent_id
+
+    async def _ensure_response_topology(self, channel, agent_id: str) -> None:
+        """Declare the agent response exchange/queue once per process for a given agent.
+
+        This avoids repeated declarations and ensures idempotent setup before publishing.
+        """
+        if agent_id not in self._declared_agents:
+            await declare_agent_response_topology(channel, agent_id)
+            self._declared_agents.add(agent_id)
 
     async def handle_agent_message(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Example business logic for an agent-local message type.

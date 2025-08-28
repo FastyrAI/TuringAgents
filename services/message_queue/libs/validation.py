@@ -72,6 +72,15 @@ def export_request_json_schema() -> dict[str, Any]:
 
 
 def now_iso() -> str:
+    """Return current UTC timestamp in compact ISO8601 format with trailing 'Z'.
+
+    The timestamp excludes microseconds for readability and interoperability.
+
+    Example:
+        >>> ts = now_iso()
+        >>> ts.endswith("Z")
+        True
+    """
     return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 

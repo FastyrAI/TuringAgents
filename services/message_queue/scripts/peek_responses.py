@@ -1,16 +1,20 @@
+"""Peek a single response from an agent's response queue and print JSON.
+
+Usage:
+  AGENT_ID=demo-agent uv run python -m scripts.peek_responses
+"""
+
 import asyncio
 import json
 import os
 
-import aio_pika
-
 from libs.config import RABBITMQ_URL
-from libs.rabbit import declare_agent_response_topology
+from libs.rabbit import declare_agent_response_topology, connect
 
 
 async def main() -> None:
     agent_id = os.getenv("AGENT_ID", "demo-agent")
-    connection = await aio_pika.connect_robust(RABBITMQ_URL)
+    connection = await connect(RABBITMQ_URL)
     async with connection:
         channel = await connection.channel()
         await declare_agent_response_topology(channel, agent_id)

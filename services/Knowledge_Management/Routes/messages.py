@@ -1,15 +1,15 @@
 from fastapi import APIRouter
 from Model.models import Message, MessageResponse, MessagesResponse
 from FalkorDB.database import DatabaseManager
-from Extraction.extractors import NLPProcessor
-from config import SPACY_MODEL
+from Extraction.extractors import GeminiProcessor
+
 
 # Initialize router
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
 # Initialize services
 db_manager = DatabaseManager()
-nlp_processor = NLPProcessor(SPACY_MODEL)
+gemini_processor = GeminiProcessor()
 
 
 #   http://localhost:8000/messages/store
@@ -24,14 +24,15 @@ def store_message(message: Message):
         user_id=message.user_id
     )
     
-    # Extract entities and relations
-    extraction_queries = nlp_processor.extract_entities_and_relations(
+    
+    # Extract entities and relations using Gemini
+    gemini_queries = gemini_processor.extract_entities_and_relations(
         content=message.content,
         message_id=stored_message["message_id"]
     )
     
-    # Execute extraction queries
-    db_manager.execute_queries(extraction_queries)
+    all_queries = gemini_queries
+    db_manager.execute_queries(all_queries)
     
     return MessageResponse(**stored_message)
 

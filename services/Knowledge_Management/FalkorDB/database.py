@@ -2,7 +2,7 @@ import falkordb
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any
-from config import *
+from config import FALKORDB_HOST, FALKORDB_PORT, FALKORDB_USERNAME, FALKORDB_PASSWORD, FALKORDB_GRAPH_NAME
 
 class DatabaseManager:
     def __init__(self):
@@ -19,14 +19,14 @@ class DatabaseManager:
         """Execute multiple database queries"""
 
         merge_queries = []
-        match_queries = []
+        other_queries = []
         
         for query_data in queries:
             query = query_data["query"].strip()
             if query.upper().startswith("MERGE"):
                 merge_queries.append(query_data)
             else:
-                match_queries.append(query_data)
+                other_queries.append(query_data)
         
         # Execute MERGE queries first
         for query_data in merge_queries:
@@ -35,12 +35,12 @@ class DatabaseManager:
             except Exception as e:
                 print(f"Error executing MERGE query: {e}")
         
-        # Execute MATCH queries after
-        for query_data in match_queries:
+        # Execute other queries after (including MATCH-CREATE combinations)
+        for query_data in other_queries:
             try:
                 self.graph.query(query_data["query"])
             except Exception as e:
-                print(f"Error executing MATCH query: {e}")
+                print(f"Error executing query: {e}")
     
     def get_messages(self, user_id: str) -> List[Dict[str, Any]]:
         """Retrieve messages for a specific user"""
@@ -190,3 +190,5 @@ class DatabaseManager:
             "user_id": user_id,
             "timestamp": timestamp
         }
+    
+

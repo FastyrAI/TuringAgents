@@ -5,15 +5,15 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 from Model.models import FileUploadResponse, FileInfo
 from FalkorDB.database import DatabaseManager
-from Extraction.extractors import NLPProcessor
-from config import SPACY_MODEL, UPLOAD_DIR
+from Extraction.extractors import GeminiProcessor
+from config import UPLOAD_DIR
 
 # Initialize router
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
 # Initialize services
 db_manager = DatabaseManager()
-nlp_processor = NLPProcessor(SPACY_MODEL)
+gemini_processor = GeminiProcessor()
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -74,14 +74,17 @@ async def upload_text_file(
                 file_id=file_id
             )
             
-            # Extract entities and relations from file content
-            extraction_queries = nlp_processor.extract_entities_and_relations(
+           
+            
+            # Extract entities and relations from file content using Gemini
+            gemini_queries = gemini_processor.extract_entities_and_relations(
                 content=extracted_content,
                 message_id=stored_message["message_id"]
             )
             
-            # Execute extraction queries
-            db_manager.execute_queries(extraction_queries)
+          
+            all_queries = gemini_queries
+            db_manager.execute_queries(all_queries)
         
         return FileUploadResponse(
             file_id=file_id,

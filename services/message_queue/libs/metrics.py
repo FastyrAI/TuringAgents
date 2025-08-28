@@ -1,6 +1,7 @@
 """Prometheus metrics and a tiny HTTP server to expose them.
 
-Call `start_metrics_server(port)` once in a process to expose /metrics.
+Call ``start_metrics_server(port)`` once per process to expose ``/metrics``.
+Modules import and increment these counters/histograms directly.
 """
 
 from __future__ import annotations
@@ -21,11 +22,28 @@ WORKER_RETRY_TOTAL = Counter(
 WORKER_DLQ_TOTAL = Counter(
     "worker_dlq_total", "Total messages sent to DLQ", ["type"]
 )
+DLQ_REPLAY_TOTAL = Counter(
+    "dlq_replay_total", "Total DLQ messages replayed", ["org_id"]
+)
+DLQ_PURGE_TOTAL = Counter(
+    "dlq_purge_total", "Total DLQ messages purged by retention", ["org_id"]
+)
 QUEUE_DEPTH = Gauge(
     "queue_depth", "Current queue depth for the org queue", ["org_id"]
 )
 POISON_QUARANTINED_TOTAL = Counter(
     "poison_quarantined_total", "Total messages quarantined as poison", ["type"]
+)
+
+# Response metrics (streaming + non-streaming)
+WORKER_RESPONSE_PUBLISHED_TOTAL = Counter(
+    "worker_response_published_total", "Total responses published by worker", ["type"]
+)
+STREAM_CHUNK_PUBLISHED_TOTAL = Counter(
+    "stream_chunk_published_total", "Total stream chunks published", ["agent_id"]
+)
+COORDINATOR_FORWARDED_TOTAL = Counter(
+    "coordinator_forwarded_total", "Total responses forwarded to local agents", ["type"]
 )
 
 # Publisher metrics
@@ -36,8 +54,55 @@ PUBLISH_FAILED_TOTAL = Counter(
     "publish_failed_total", "Total publish failures", ["reason"]
 )
 
+# Rate limiting metrics
+RATE_LIMIT_THROTTLED_TOTAL = Counter(
+    "rate_limit_throttled_total", "Total times the producer waited for rate limit"
+)
+RATE_LIMIT_WAIT_SECONDS = Histogram(
+    "rate_limit_wait_seconds", "Seconds waited due to token-bucket limiting", buckets=(0.001, 0.01, 0.05, 0.1, 0.5, 1, 2)
+)
+
+# Backpressure/management metrics
+MGMT_API_ERRORS_TOTAL = Counter(
+    "mgmt_api_errors_total", "Total errors contacting RabbitMQ management API", ["operation"]
+)
+
+# Audit batching metrics
+AUDIT_EVENT_ENQUEUED_TOTAL = Counter(
+    "audit_event_enqueued_total",
+    "Total audit events enqueued for batching",
+    ["event_type"],
+)
+AUDIT_EVENTS_DROPPED_TOTAL = Counter(
+    "audit_events_dropped_total",
+    "Total audit events dropped due to full buffer",
+)
+AUDIT_BATCH_FLUSH_TOTAL = Counter(
+    "audit_batch_flush_total",
+    "Total number of audit batch flushes",
+    ["reason"],  # size | interval | shutdown
+)
+AUDIT_BATCH_SIZE = Histogram(
+    "audit_batch_size",
+    "Number of audit events written in a single batch",
+    buckets=(1, 5, 10, 25, 50, 100, 250, 500, 1000),
+)
+AUDIT_EVENT_WRITE_SECONDS = Histogram(
+    "audit_event_write_seconds",
+    "Time taken to write an audit batch to the database",
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2),
+)
+
 
 def start_metrics_server(port: int = 9000) -> None:
+    """Start an HTTP server that exposes Prometheus metrics at ``/metrics``.
+
+    Safe to call multiple times per process; subsequent calls are no-ops on most
+    platforms (or will raise OSError which callers may choose to ignore).
+
+    Example:
+        >>> start_metrics_server(9000)
+    """
     start_http_server(port)
 
 

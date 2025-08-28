@@ -1,9 +1,49 @@
+# Load environment variables
+import os
+
+env_loaded = False
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✓ .env file loaded successfully")
+    env_loaded = True
+except ImportError:
+    print("python-dotenv not found. Trying manual .env file loading...")
+except Exception as e:
+    print(f"⚠ Error loading .env file with python-dotenv: {e}. Trying manual loading...")
+
+# Manual .env file loading as fallback
+if not env_loaded:
+    try:
+        env_file_path = os.path.join(os.path.dirname(__file__), '.env')
+        if os.path.exists(env_file_path):
+            with open(env_file_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+            print("env file loaded manually")
+        else:
+            print("env file not found in project directory")
+    except Exception as e:
+        print(f"Error loading .env file manually: {e}")
+
+# Gemini Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY not found in environment variables. Please check your .env file.")
+
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+ENABLE_GEMINI_EXTRACTION = os.getenv("ENABLE_GEMINI_EXTRACTION", "true").lower() == "true"
+
+
 # Database Configuration
-FALKORDB_HOST = "r-6jissuruar.instance-sqfov9if0.hc-2uaqqpjgg.us-east-2.aws.f2e0a955bb84.cloud"
-FALKORDB_PORT = 50224
-FALKORDB_USERNAME = "falkordb"
-FALKORDB_PASSWORD = "jawadafzal1233"
-FALKORDB_GRAPH_NAME = "Tgraph"
+FALKORDB_HOST = os.getenv("FALKORDB_HOST")
+FALKORDB_PORT = int(os.getenv("FALKORDB_PORT"))
+FALKORDB_USERNAME = os.getenv("FALKORDB_USERNAME")
+FALKORDB_PASSWORD = os.getenv("FALKORDB_PASSWORD")
+FALKORDB_GRAPH_NAME = os.getenv("FALKORDB_GRAPH_NAME")
 
 # API Configuration
 API_HOST = "0.0.0.0"
@@ -57,3 +97,4 @@ IGNORE_WORDS = {
     "it", "its", "they", "them", "their", "we", "us", "our", "you", "your", "he", "she", "his", "her",
     "i", "me", "my", "mine", "what", "when", "where", "why", "how", "who", "which", "whose"
 }
+

@@ -46,6 +46,8 @@ uv run python -m scripts.coordinator
 ```bash
 export ORG_ID=demo-org
 export AGENT_ID=demo-agent
+export WORKER_PREFETCH=32      # AMQP QoS (messages delivered before ack)
+export WORKER_CONCURRENCY=16   # Max in-flight handlers per worker process
 uv run python -m scripts.worker
 ```
 The worker exposes Prometheus metrics on `http://localhost:9000/metrics` by default.
@@ -60,3 +62,6 @@ uv run python -m scripts.producer
 
 ## Kubernetes
 See `docs/DEPLOYMENT_K8S.md` for a checklist and manifests.
+
+### Ordering semantics
+- Best-effort ordering only at the queue layer. Within an org, multiple agents can process in parallel. If an agent requires ordering/serialization, it must enforce it at the application layer (e.g., sequence numbers or local locks).

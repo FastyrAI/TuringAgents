@@ -1,12 +1,21 @@
 """Backpressure utilities based on RabbitMQ queue depth via management API.
 
-This module polls the queue depth and decides when to signal throttle modes.
+This module queries the queue depth of an organization's priority queue using
+the RabbitMQ Management HTTP API and provides a simple policy to map depth to
+throttle modes. Callers can use these signals to shed load at the producer or
+to scale workers.
+
+Usage example:
+    >>> depth = get_queue_depth("demo-org")
+    >>> mode = decide_throttle(depth, BackpressureConfig())
+    >>> mode in {"none", "light", "heavy", "emergency"}
+    True
 """
 
 from __future__ import annotations
 
 import os
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Optional
 
 import httpx
 
@@ -15,6 +24,22 @@ ThrottleMode = Literal["none", "light", "heavy", "emergency"]
 
 
 class BackpressureConfig:
+    """Thresholds controlling throttle modes derived from queue depth.
+
+    Attributes:
+        scale_threshold: Depth at which autoscaling should be considered.
+        light_throttle_threshold: Depth at which to throttle lowest-priority traffic.
+        heavy_throttle_threshold: Depth at which to throttle mid/low priority.
+        emergency_threshold: Depth at which to allow only P0 traffic.
+
+    Example:
+        >>> cfg = BackpressureConfig(light_throttle_threshold=200)
+        >>> decide_throttle(50, cfg)
+        'none'
+        >>> decide_throttle(5000, cfg)
+        'emergency'
+    """
+
     def __init__(
         self,
         scale_threshold: int = 100,
@@ -28,11 +53,18 @@ class BackpressureConfig:
         self.emergency_threshold = emergency_threshold
 
 
-def get_queue_depth(org_id: str) -> int:
-    """Fetch the current queue depth via RabbitMQ management API.
+def get_queue_depth(org_id: str, *, strict: bool = False) -> int:
+    """Return current queue depth via RabbitMQ Management API.
 
-    Requires RabbitMQ management UI to be enabled and accessible at RABBITMQ_MGMT_URL,
-    with credentials RABBITMQ_USER / RABBITMQ_PASS.
+    Requires RabbitMQ Management to be enabled and reachable at ``RABBITMQ_MGMT_URL``.
+    Credentials are read from ``RABBITMQ_USER``/``RABBITMQ_PASS``.
+
+    Behavior:
+    - strict=False (default): fail-open and return 0 on errors to avoid blocking
+      producers/workers in environments where the management API is disabled or
+      transiently unavailable (e.g., local dev, Supabase-only CI).
+    - strict=True: raise exceptions on failure, suitable for autoscalers/infra
+      components that must react to outages instead of silently degrading.
     """
     base = os.getenv("RABBITMQ_MGMT_URL", "http://localhost:15672")
     user = os.getenv("RABBITMQ_USER", "guest")
@@ -43,15 +75,29 @@ def get_queue_depth(org_id: str) -> int:
     try:
         r = httpx.get(url, auth=(user, pw), timeout=5)
         if r.status_code != 200:
+            if strict:
+                raise RuntimeError(f"mgmt api http {r.status_code}")
+            from libs.metrics import MGMT_API_ERRORS_TOTAL
+            MGMT_API_ERRORS_TOTAL.labels(operation="get_queue_depth").inc()
             return 0
         data = r.json()
         return int(data.get("messages", 0))
-    except Exception:
+    except Exception as exc:
+        if strict:
+            raise
+        try:
+            from libs.metrics import MGMT_API_ERRORS_TOTAL
+            MGMT_API_ERRORS_TOTAL.labels(operation="get_queue_depth").inc()
+        except Exception:
+            pass
         return 0
 
 
 def decide_throttle(depth: int, cfg: BackpressureConfig) -> ThrottleMode:
-    """Return throttle mode based on depth thresholds."""
+    """Map a queue depth to a throttle mode using the provided thresholds.
+
+    Returns one of: ``"none"``, ``"light"``, ``"heavy"``, ``"emergency"``.
+    """
     if depth > cfg.emergency_threshold:
         return "emergency"
     if depth > cfg.heavy_throttle_threshold:
