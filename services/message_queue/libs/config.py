@@ -1,6 +1,6 @@
 import os
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # Core connection settings
@@ -106,8 +106,8 @@ class Settings(BaseModel):
     worker_concurrency: int = int(os.getenv("WORKER_CONCURRENCY", "10"))
     idempotency_ttl_days: int = int(os.getenv("IDEMPOTENCY_TTL_DAYS", "30"))
     poison_threshold: int = int(os.getenv("POISON_THRESHOLD", "3"))
-    # DLQ retention in days for purge job
-    dlq_retention_days: int = int(os.getenv("DLQ_RETENTION_DAYS", "90"))
+    # DLQ retention in days for purge job. Use default_factory so env is read at instantiation time.
+    dlq_retention_days: int = Field(default_factory=lambda: int(os.getenv("DLQ_RETENTION_DAYS", "90")))
 
     # Audit batching
     audit_batch_size: int = int(os.getenv("AUDIT_BATCH_SIZE", "100"))
