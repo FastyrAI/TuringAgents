@@ -46,6 +46,7 @@ def get_engine() -> Any:
         - ``SUPABASE_POSTGRES_URL``
         - ``POSTGRES_URL``
         - ``POSTGRES_CONNECTION_STRING``
+        - ``SUPABASE_URL``  (legacy fallback)
 
     URLs of the form ``postgres://`` or ``postgresql://`` are normalized to
     ``postgresql+asyncpg://`` for the ``asyncpg`` driver.
@@ -68,6 +69,8 @@ def get_engine() -> Any:
             "SUPABASE_POSTGRES_URL",
             "POSTGRES_URL",
             "POSTGRES_CONNECTION_STRING",
+            # Legacy fallback: some deployments provided DB URL via SUPABASE_URL
+            "SUPABASE_URL",
         )
         db_url: str = ""
         for key in candidate_env_keys:
