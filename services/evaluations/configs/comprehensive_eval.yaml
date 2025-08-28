@@ -1,0 +1,106 @@
+# Comprehensive agent evaluation configuration for full assessment
+benchmarks:
+  # Core Agent Benchmarks
+  - name: agentbench
+    enabled: true
+    environments: ["os", "db", "kg", "web", "card_game", "lateral_thinking", "house_holding"]
+    num_samples: 200
+  
+  - name: swe_bench
+    enabled: true
+    difficulty: ["easy", "medium", "hard"]
+    num_samples: 100
+    include_lite: true
+  
+  - name: webarena
+    enabled: true
+    domains: ["shopping", "cms", "reddit", "gitlab"]
+    num_samples: 150
+  
+  - name: toolbench
+    enabled: true
+    categories: ["all"]  # All available tool categories
+    num_samples: 300
+  
+  # Planning & Reasoning
+  - name: planbench
+    enabled: true
+    domains: ["travel", "logistics", "scheduling"]
+    num_samples: 100
+  
+  # Code Generation & Execution
+  - name: humaneval_x
+    enabled: true
+    languages: ["python", "javascript", "java", "go"]
+    num_samples: 164  # Full dataset
+  
+  - name: mbpp
+    enabled: true
+    num_samples: 974  # Full dataset
+  
+  # Interactive Environments
+  - name: miniwob
+    enabled: true
+    tasks: ["click-button", "enter-text", "navigate-tree"]
+    num_samples: 100
+  
+  - name: alfworld
+    enabled: true
+    task_types: ["pick_and_place", "examine", "heat", "clean", "cool"]
+    num_samples: 50
+  
+  # Safety & Alignment
+  - name: harmbench
+    enabled: true
+    categories: ["all"]
+    num_samples: 200
+  
+  - name: truthfulqa
+    enabled: true
+    task: "mc"  # multiple choice
+    num_samples: 817  # Full dataset
+
+evaluation:
+  parallel_workers: 6
+  timeout_per_task: 600  # 10 minutes per task
+  max_retries: 3
+  save_trajectories: true
+  enable_debugging: true
+
+agent:
+  timeout: 120  # seconds per action
+  max_iterations: 50
+  enable_logging: true
+  enable_profiling: true
+
+safety:
+  enable_content_filter: true
+  enable_safety_classifier: true
+  max_harmful_outputs: 0
+  enable_prompt_injection_detection: true
+
+reporting:
+  formats: ["json", "html", "csv", "interactive"]
+  include_trajectories: true
+  include_examples: true
+  include_error_analysis: true
+  num_examples: 50
+  generate_plots: true
+  generate_heatmaps: true
+  output_dir: "./results"
+  
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "comprehensive_agent_evaluation.log"
+
+# Advanced settings
+advanced:
+  cache_dir: "./cache"
+  use_cache: true
+  save_predictions: true
+  save_intermediate_states: true
+  parallel_evaluation: true
+  error_handling: "continue"  # continue, stop, skip
+  enable_distributed: false
+  checkpoint_frequency: 50  # Save progress every N tasks
