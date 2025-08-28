@@ -22,7 +22,7 @@ def _extract_entities_naive(text: str) -> List[str]:
     return list({e for e in ents if e})
 
 
-class ContextEngineeringAPI:
+class ContextCompression:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.graph = GraphClient(self.settings.neo4j_uri, self.settings.neo4j_user, self.settings.neo4j_password)
@@ -108,3 +108,5 @@ class ContextEngineeringAPI:
         loser = text_b if winner is text_a else text_a
         record_event("conflict_resolved", {"winner_len": len(winner), "loser_len": len(loser)})
         return {"winner": winner, "loser": loser}
+
+

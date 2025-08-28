@@ -16,9 +16,9 @@ ScopeName = Literal["session", "goal", "global"]
 
 
 # Core services
-NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password")
+GRAPH_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+GRAPH_USER: str = os.getenv("NEO4J_USER", "neo4j")
+GRAPH_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password")
 
 RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 
@@ -37,9 +37,9 @@ EPHEMERAL_TTL_SECONDS: int = int(os.getenv("EPHEMERAL_TTL_SECONDS", str(60 * 60 
 
 class Settings(BaseModel):
     environment: EnvName = ENVIRONMENT
-    neo4j_uri: str = NEO4J_URI
-    neo4j_user: str = NEO4J_USER
-    neo4j_password: str = NEO4J_PASSWORD
+    graph_uri: str = GRAPH_URI
+    graph_user: str = GRAPH_USER
+    graph_password: str = GRAPH_PASSWORD
     rabbitmq_url: str = RABBITMQ_URL
     metrics_port: int = METRICS_PORT
     openai_api_key: str = OPENAI_API_KEY

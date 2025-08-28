@@ -4,47 +4,47 @@ import argparse
 import asyncio
 import sys
 
-from .libs.api import ContextEngineeringAPI
+from .libs.context_compression import ContextCompression
 from .libs.config import get_settings
 from .libs.metrics import start_metrics_server, HEALTH_GAUGE
 
 
-def cmd_ingest(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_ingest(api: ContextCompression, args: argparse.Namespace) -> None:
     _id = api.ingest(args.text, session_id=args.session_id, scope=args.scope, org_id=args.org_id, goal_id=args.goal_id)
     print(_id)
 
 
-def cmd_retrieve(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_retrieve(api: ContextCompression, args: argparse.Namespace) -> None:
     items = api.retrieve(args.query, session_id=args.session_id, goal_id=args.goal_id, k=args.k)
     for it in items:
         print(f"{it['id']}\t{it['score']}\t{it['text'][:120]}")
 
 
-def cmd_summarize(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_summarize(api: ContextCompression, args: argparse.Namespace) -> None:
     rows = api.graph.get_session_texts(args.session_id)
     texts = [t for _id, t, _ts in rows]
     out = asyncio.run(api.summarize(texts, session_id=args.session_id, algorithm=args.algorithm))
     print(out)
 
 
-def cmd_snapshot(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_snapshot(api: ContextCompression, args: argparse.Namespace) -> None:
     out = asyncio.run(api.snapshot(args.session_id))
     print(out)
 
 
-def cmd_verify(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_verify(api: ContextCompression, args: argparse.Namespace) -> None:
     rows = api.graph.get_session_texts(args.session_id)
     texts = [t for _id, t, _ts in rows]
     res = api.verify(args.summary, texts)
     print(res)
 
 
-def cmd_expire(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_expire(api: ContextCompression, args: argparse.Namespace) -> None:
     deleted = api.graph.expire_ephemeral()
     print({"deleted": deleted})
 
 
-def cmd_pipeline(api: ContextEngineeringAPI, args: argparse.Namespace) -> None:
+def cmd_pipeline(api: ContextCompression, args: argparse.Namespace) -> None:
     # Ingest provided texts (can pass multiple --text)
     for t in (args.text or []):
         _id = api.ingest(t, session_id=args.session_id, scope=args.scope, org_id=args.org_id, goal_id=args.goal_id)
@@ -108,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     start_metrics_server(settings.metrics_port)
     HEALTH_GAUGE.set(1)
 
-    api = ContextEngineeringAPI(settings)
+    api = ContextCompression(settings)
 
     if args.cmd == "ingest":
         cmd_ingest(api, args)

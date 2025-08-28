@@ -12,6 +12,11 @@ dependencies = [
   "rank-bm25==0.2.2",
   "numpy==1.26.4",
   "google-generativeai>=0.7.2",
+  "rouge-score==0.1.2",
+  "nltk==3.9.1",
+  "bert-score==0.3.13",
+  "torch>=2.1.0; platform_system != 'Darwin' or platform_machine != 'arm64'",
+  "deepeval>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -29,3 +34,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["libs", "scripts"]
+
+[tool.pytest.ini_options]
+markers = [
+  "llm_judge: tests that call an external LLM-as-judge via DeepEval",
+]
