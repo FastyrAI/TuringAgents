@@ -1,0 +1,129 @@
+---
+-
+    id: 1
+    query: I need help setting up an automated sales system that can capture leads from different places, figure out which ones are most likely to buy, and automatically connect them with the right salesperson along with personalized messages
+-
+    id: 2
+    query: Can you help me create a smart customer support system that automatically sorts tickets, suggests good responses from what we already know, and flags the tricky issues while keeping track of how fast we're solving things?
+-
+    id: 3
+    query: I want to build something that handles our expense reports automatically - scanning receipts, putting them in the right categories, catching rule violations, and creating reimbursement requests for approval
+-
+    id: 4
+    query: How can I create a pricing tool that watches what competitors are charging, looks at how much people want our products, and adjusts our prices automatically to make the most money?
+-
+    id: 6
+    query: I have our quarterly sales data and need to pull out the important insights and create a dashboard showing which products, regions, and sales reps are bringing in the most revenue
+-
+    id: 7
+    query: Can you analyze our customer churn data and help me identify the key warning signs that tell us when someone is about to cancel their subscription?
+-
+    id: 8
+    query: I need to go through our employee survey responses to figure out what makes people happy at work and get some actionable ideas for improving our workplace culture
+-
+    id: 12
+    query: I want to create a fitness app that personalizes my workouts based on how I'm progressing, tracks my nutrition goals, and uses my phone's camera to give me feedback on my form
+-
+    id: 14
+    query: Can you help me build a personal finance assistant that automatically organizes my spending, finds ways I can save money, manages my investments, and gives me personalized financial advice?
+-
+    id: 15
+    query: I need a smart travel helper that finds the best deals, plans trips based on what I like, handles all the bookings, and keeps me updated with real-time info during my travels
+-
+    id: 16
+    query: Can you look at my spending patterns from my bank statements and tell me exactly how much I could save by switching to cheaper alternatives for the things I buy regularly?
+-
+    id: 19
+    query: I want to analyze all my monthly subscriptions and figure out which ones aren't worth it based on how much I actually use them
+-
+    id: 20
+    query: Can you review my utility bills and tell me specific things I can do to lower my energy costs based on how and when I use electricity?
+-
+    id: 21
+    query: I need to set up a market intelligence system that keeps track of industry trends, what competitors are doing, and new opportunities, with alerts when something important happens
+-
+    id: 22
+    query: Can you help me create a tool that automatically reviews scientific literature by searching databases, summarizing the key findings, spotting research gaps, and showing how papers connect to each other?
+-
+    id: 28
+    query: I want to build a system that monitors what people are saying about our brand across all platforms and gives me early warnings when there might be reputation problems
+-
+    id: 34
+    query: Can you help me create a content creation system that generates social media posts, blog articles, marketing emails, and ad copy that all match our brand voice?
+-
+    id: 37
+    query: I need an interactive tool that can assess people's skills, identify what they need to learn, and create personalized development plans for them
+-
+    id: 41
+    query: Can you help me build a framework for evaluating different SaaS tools based on what we specifically need, how they integrate, what they cost, and how well they'll scale with us?
+-
+    id: 42
+    query: I want to create a vendor selection system that scores suppliers on quality, reliability, pricing, and strategic fit, and can automatically generate RFPs
+-
+    id: 48
+    query: Can you process our social media engagement data to create detailed audience personas showing what content they prefer, when they're most active, and who influences them?
+-
+    id: 57
+    query: I need a smart calendar assistant that optimizes my schedule, blocks out focus time, suggests better meeting options, and works seamlessly with my project management tools
+-
+    id: 58
+    query: Can you help me set up a personal brand management system using Canva and Hootsuite that creates consistent content, schedules posts, and tracks how well I'm engaging with people across social platforms?
+-
+    id: 60
+    query: I want to create an automated job search assistant using LinkedIn that finds relevant opportunities, customizes my applications, tracks what I've submitted, and helps me prepare for interviews
+-
+    id: 70
+    query: Can you review our customer support conversations to identify the most common problems people have, improve how we respond, and boost our satisfaction scores?
+-
+    id: 71
+    query: I need an intelligent lead nurturing system that personalizes communication based on what prospects do, automates follow-ups, and optimizes the whole conversion process
+-
+    id: 75
+    query: Can you help me create a smart document management system that organizes files, pulls out important information, makes sure we're compliant, and has really good search capabilities?
+-
+    id: 87
+    query: I want to build a personalized career advisor that assesses my skills, identifies good opportunities, suggests learning paths, and connects me with mentors
+-
+    id: 104
+    query: Can you help me create a learning companion that figures out what I don't know across different subjects and creates integrated learning plans that build on each other over time?
+-
+    id: 105
+    query: I need a career optimization system that analyzes global job trends, identifies what skills will be in demand, and helps me make strategic career moves to maximize my earning potential long-term
+-
+    id: 106
+    query: Can you help me create a system that aligns my personal values with my career choices, investment decisions, and daily actions to maximize the positive impact I have on society?
+-
+    id: 107
+    query: I want to build a communication assistant that seamlessly translates between languages, cultures, and communication styles to help me connect better with people globally in both work and personal settings
+-
+    id: 108
+    query: Can you help me create a predictive health system that combines my genetic data, lifestyle patterns, environmental factors, and medical history to prevent illness and optimize how long I live?
+-
+    id: 109
+    query: I need a comprehensive risk management system for my entire life that monitors financial, health, career, and relationship risks and automatically puts protective strategies in place
+-
+    id: 110
+    query: Can you help me build a creativity amplification system that combines knowledge from different fields to generate innovative solutions to complex personal and professional challenges?
+-
+    id: 111
+    query: I want to create an integrated supply chain platform that coordinates global suppliers, predicts disruptions, optimizes logistics, and ensures we're sourcing ethically across multiple product lines
+-
+    id: 112
+    query: Can you help me build a regulatory compliance system that monitors changing laws across different jurisdictions, assesses how they impact our business, and implements automated compliance workflows?
+-
+    id: 131
+    query: I need a real-time family coordination system that optimizes everyone's schedules, manages logistics, helps us communicate better, and makes sure everyone's needs are met efficiently
+-
+    id: 132
+    query: Can you help me build a personal brand manager that adapts my professional image across platforms as markets change, ensuring I stay relevant and influential long-term?
+-
+    id: 135
+    query: I want to create a financial freedom system that coordinates income optimization, expense reduction, investment strategies, and tax planning to help me achieve independence faster
+-
+    id: 136
+    query: Can you help me build a health optimization system that integrates preventive care, nutrition, exercise, mental health, and environmental factors to maximize my quality of life over time?
+-
+    id: 137
+    query: I need a learning acceleration system that identifies the most efficient ways for me to acquire new skills and knowledge based on my learning style and goals
+
+

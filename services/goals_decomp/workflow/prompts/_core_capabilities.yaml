@@ -1,0 +1,720 @@
+# This file contains the core capabilities of the AI Agent System. Used for capabilities analysis.
+# These capabilities are just for the sake of analysis, not representative of the actual capabilities of the AI Agent System.
+core_capabilities: |
+  capability: Web_browsing_capability
+  description: "The capability to browse the web and retrieve information from the web."
+  tasks:
+    - name: visit_url_task
+      description: "The task to visit a URL."
+      interface:
+        inputs:
+          - url: "URL of the page to visit i.e. https://www.google.com"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - html: "The HTML of the visited URL"
+    - name: enter_text_task
+      description: "The task to enter text into a web page."
+      interface:
+        inputs:
+          - text: "Hello, world!"
+        dependencies:
+          - click_element_task
+        execution_context:
+          - None
+        outputs:
+          - text: "The text entered"
+    - name: page_up_task
+      description: "The task to scroll up a page."
+      interface:
+        inputs:
+          - None
+        dependencies:
+          - visit_url_task
+        execution_context:
+          - None
+        outputs:
+          - None
+    - name: page_down_task
+      description: "The task to scroll down a page."
+      interface:
+        inputs:
+          - None
+        dependencies:
+          - visit_url_task
+        execution_context:
+          - None
+        outputs:
+          - None
+    - name: get_page_markdown_task
+      description: "The task to get the markdown of a page."
+      interface:
+        inputs:
+          - None
+        dependencies:
+          - visit_url_task
+        execution_context:
+          - None
+        outputs:
+          - markdown: "The markdown of the visited URL"
+    - name: click_element_task
+      description: "The task to click an element on a web page."
+      interface:
+        inputs:
+          - element: "The ID of the element to click"
+        dependencies:
+          - visit_url_task
+        execution_context:
+          - None
+        outputs:
+          - None
+    - go_back_page_task
+      description: "The task to go back to the previous page."
+      interface:
+        inputs:
+          - None
+        dependencies:
+          - visit_url_task
+        execution_context:
+          - None
+        outputs:
+          - None
+    - search_google_task
+      description: "The task to search Google."
+      interface:
+        inputs:
+          - query: "The query to search for"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - markdown: "Parsed markdown of the searched query results."
+
+  capability: Excel_capability
+  description: "The capability to read, write, and manipulate Excel / CSV files. It can also do data manipulation and analysis."
+  tasks:
+    - name: read_excel_file_task
+      description: "The task to read an Excel file."
+      interface:
+        inputs:
+          - file_path: "The path to the Excel file to read"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - data: "The data read from the Excel file"
+    - name: write_excel_file_task
+      description: "The task to write to an Excel file."
+      interface:
+        inputs:
+          - file_path: "The path to the Excel file to write"
+          - data: "The data to write to the Excel file"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - None
+    - name: complex_data_manipulation_task
+      description: "The task to manipulate data in an Excel file via formulas on rows and columns."
+      interface:
+        inputs:
+          - data: "The data to manipulate - rows & columns to be manipulated."
+          - excel_formula: "The formula to use for the data manipulation"
+        dependencies:
+          - read_excel_file_task
+        execution_context:
+          - None
+        outputs:
+          - data: "The manipulated data"
+    - name: sum_task
+      description: "The task to sum a row or column of data in an Excel file."
+      interface:
+        inputs:
+          - data: "The data (row or column) to sum"
+        dependencies:
+          - read_excel_file_task
+        execution_context:
+          - None
+        outputs:
+          - sum: "The sum of the data"
+    - name: average_task
+      description: "The task to average a row or column of data in an Excel file."
+      interface:
+        inputs:
+          - data: "The data (row or column) to average"
+        dependencies:
+          - read_excel_file_task
+        execution_context:
+          - None
+        outputs:
+          - average: "The average of the data"
+    - name: max_task
+      description: "The task to find the max value of a row or column of data in an Excel file."
+      interface:
+        inputs:
+          - data: "The data (row or column) to find the max value of"
+        dependencies:
+          - read_excel_file_task
+        execution_context:
+          - None
+        outputs:
+          - max: "The max value of the data"
+
+  capability: Arxiv_interaction_capability
+  description: "The capability to search and download academic papers from the arXiv repository/API."
+  tasks:
+    - name: search_papers_task
+      description: "The task to search for papers on the arXiv API."
+      interface:
+        inputs:
+          - query: "The search query string (e.g., 'machine learning', 'quantum computing')"
+          - paper_ids: "Optional list of specific arXiv paper IDs to search for"
+          - max_results: "Maximum number of search results to return (default: 5)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - papers_data: "List of dictionaries containing paper metadata (title, published_date, authors, entry_id, summary, pdf_url, paper_text)"
+    - name: download_paper_task
+      description: "The task to download papers from the arXiv API."
+      interface:
+        inputs:
+          - pdf_url: "The URL of the PDF to download"
+          - output_dir: "Directory to save downloaded PDFs (default: './')"
+        dependencies:
+          - search_papers_task
+        execution_context:
+          - None
+        outputs:
+          - status_message: "String indicating success or failure of download operation"
+
+  capability: Terminal_operations_capability
+  description: "The capability to execute shell commands and manage terminal sessions across multiple operating systems."
+  tasks:
+    - name: shell_exec_task
+      description: "The task to execute shell commands inside a terminal session."
+      interface:
+        inputs:
+          - id: "Unique identifier for the shell session"
+          - command: "The shell command to be executed (e.g., 'ls -la', 'python script.py')"
+        outputs:
+          - command_output: "Standard output and standard error from the executed command"
+        dependencies:
+          - None
+        execution_context:
+          - None
+    - name: shell_view_task
+      description: "The task to view the output of a shell session."
+      interface:
+        inputs:
+          - id: "Unique identifier of the shell session to view"
+        outputs:
+          - session_history: "Complete output history of the shell session"
+        dependencies:
+          - shell_exec_task
+        execution_context:
+          - None   
+    - name: shell_wait_task
+      description: "The task to wait for a shell session to complete."
+      interface:
+        inputs:
+          - id: "Unique identifier of the target shell session"
+          - seconds: "Optional maximum time to wait in seconds (default: indefinite)"
+        dependencies:
+          - shell_exec_task
+        execution_context:
+          - None
+        outputs:
+          - completion_status: "Message indicating process completion or timeout"
+    - name: shell_write_to_process_task
+      description: "The task to write to the stdin of a shell session."
+      interface:
+        inputs:
+          - id: "Unique identifier of the target shell session"
+          - input: "Text to write to the process's stdin"
+          - press_enter: "Boolean flag to append newline character"
+        dependencies:
+          - shell_exec_task
+        execution_context:
+          - None
+        outputs:
+          - write_status: "Status message indicating success or failure of input operation"
+    - name: shell_kill_process_task
+      description: "The task to kill a process in a shell session."
+      interface:
+        inputs:
+          - id: "Unique identifier of the shell session containing the process to terminate"
+        dependencies:
+          - shell_exec_task
+        execution_context:
+          - None
+        outputs:
+          - termination_status: "Status message indicating process termination result"
+    - name: ask_user_for_help_task
+      description: "The task to ask the user for help in a shell session."
+      interface:
+        inputs:
+          - id: "Identifier of the shell session for human interaction"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - assistance_result: "Status message with details of human intervention and command count"
+
+  capability: PowerPoint_presentation_creation_capability
+  description: "The capability to create and format PowerPoint presentations (PPTX files) with various slide types, text formatting, and image integration."
+  tasks:
+    - name: create_presentation_task
+      description: "The task to create a PowerPoint presentation."
+      interface:
+        inputs:
+          - content: "JSON string representing slide content structure (title slide + content slides)"
+          - filename: "Name or path of the PPTX file to create"
+          - template: "Optional path to template PPTX file for styling"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - presentation_file: "Created PPTX file at specified location"
+          - status_message: "Success or error message with file path"
+    - name: parse_and_validate_content_task
+      description: "The task to parse and validate the content of a PowerPoint presentation."
+      interface:
+        inputs:
+          - content: "Raw JSON string containing presentation structure"
+        dependencies:
+          - create_presentation_task
+        execution_context:
+          - None
+        outputs:
+          - parsed_content: "Validated and parsed content structure"
+          - validation_result: "Success or error status"
+    - name: create_title_slide_task
+      description: "The task to create a title slide in a PowerPoint presentation."
+      interface:
+        inputs:
+          - title_data: "Dictionary with title and subtitle keys"
+          - presentation: "PowerPoint presentation object"
+        dependencies:
+          - parse_and_validate_content_task
+        execution_context:
+          - None
+        outputs:
+          - title_slide: "Formatted title slide added to presentation"
+    - name: create_bullet_point_slide_task
+      description: "The task to create a bullet point slide in a PowerPoint presentation."
+      interface:
+        inputs:
+          - slide_data: "Dictionary with heading, bullet_points, and optional img_keywords"
+          - presentation: "PowerPoint presentation object"
+        dependencies:
+          - create_title_slide_task
+        execution_context:
+          - None
+        outputs:
+          - bullet_slide: "Formatted bullet point slide added to presentation"
+    - name: create_step_by_step_slide_task
+      description: "The task to create a step-by-step slide in a PowerPoint presentation."
+      interface:
+        inputs:
+          - slide_data: "Dictionary with heading and bullet_points marked with '>> ' prefix"
+          - presentation: "PowerPoint presentation object"
+          - slide_dimensions: "Width and height of slide in inches"
+        dependencies:
+          - create_title_slide_task
+        execution_context:
+          - None
+        outputs:
+          - process_slide: "Visual step-by-step process slide with shapes"
+    - name: create_table_slide_task
+      description: "The task to create a table slide in a PowerPoint presentation."
+      interface:
+        inputs:
+          - slide_data: "Dictionary with heading and table data (headers, rows)"
+          - presentation: "PowerPoint presentation object"
+        dependencies:
+          - create_title_slide_task
+        execution_context:
+          - None
+        outputs:
+          - table_slide: "Formatted table slide added to presentation"
+    - name: add_image_to_slide_task
+      description: "The task to add an image to a slide in a PowerPoint presentation."
+      interface:
+        inputs:
+          - img_keywords: "URL or search keywords for image content"
+          - slide: "PowerPoint slide object to enhance with image"
+        dependencies:
+          - create_bullet_point_slide_task
+        execution_context:
+          - None
+        outputs:
+          - enhanced_slide: "Slide with integrated image content"
+          - image_status: "Success or failure of image integration"
+    - name: save_presentation_task
+      description: "The task to save a PowerPoint presentation."
+      interface:
+        inputs:
+          - presentation: "Complete PowerPoint presentation object"
+          - file_path: "Target file path for saving"
+        dependencies:
+          - create_bullet_point_slide_task
+          - create_step_by_step_slide_task  
+          - create_table_slide_task
+        execution_context:
+          - None
+        outputs:
+          - saved_file: "PPTX file written to disk"
+          - completion_status: "Final success or error message"
+
+  capability: Google_Drive_MCP_integration_capability
+  description: "The capability to interact with Google Drive through Model Context Protocol (MCP) server integration for file and folder operations."
+  tasks:
+    - name: connect_to_gdrive_server_task
+      description: "The task to connect to the Google Drive MCP server."
+      interface:
+        inputs:
+          - credentials_path: "Path to Google Drive credentials file"
+          - timeout: "Optional connection timeout in seconds"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - connection_status: "Success or failure of MCP server connection"
+          - available_tools: "List of Google Drive operations exposed by MCP server"
+    - name: disconnect_from_gdrive_server_task
+      description: "The task to disconnect from the Google Drive MCP server."
+      interface:
+        inputs:
+          - None
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - disconnection_status: "Confirmation of clean disconnection"
+    - name: search_files_task
+      description: "The task to search for files and folders in Google Drive."
+      interface:
+        inputs:
+          - query: "Search query string for files and folders"
+          - mime_type: "Optional MIME type filter"
+          - folder_id: "Optional folder ID to limit search scope"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - search_results: "List of matching files and folders with metadata"
+    - name: create_file_task
+      description: "The task to create a file in Google Drive."
+      interface:
+        inputs:
+          - name: "Name of the file to create"
+          - content: "File content or data"
+          - parent_folder_id: "Optional parent folder ID"
+          - mime_type: "MIME type of the file"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - created_file: "File object with ID, name, and metadata"
+          - file_url: "Shareable URL of the created file"
+    - name: read_file_task
+      description: "The task to read a file from Google Drive."
+      interface:
+        inputs:
+          - file_id: "Google Drive file ID to read"
+          - format: "Optional export format for Google Workspace files"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - file_content: "Raw content or formatted export of the file"
+          - file_metadata: "File properties, permissions, and timestamps"
+    - name: update_file_task
+      description: "The task to update a file in Google Drive."
+      interface:
+        inputs:
+          - file_id: "Google Drive file ID to update"
+          - content: "New content to replace existing content"
+          - metadata: "Optional metadata updates (name, description, etc.)"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - updated_file: "Updated file object with new revision information"
+    - name: delete_file_task
+      description: "The task to delete a file from Google Drive."
+      interface:
+        inputs:
+          - file_id: "Google Drive file ID to delete"
+          - permanent: "Boolean flag for permanent deletion vs. trash"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - deletion_status: "Confirmation of successful file deletion"
+    - name: create_folder_task
+      description: "The task to create a folder in Google Drive."
+      interface:
+        inputs:
+          - name: "Name of the folder to create"
+          - parent_folder_id: "Optional parent folder ID"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - created_folder: "Folder object with ID, name, and metadata"
+    - name: share_file_task
+      description: "The task to share a file in Google Drive."
+      interface:
+        inputs:
+          - file_id: "Google Drive file ID to share"
+          - email: "Email address to share with"
+          - role: "Permission role (reader, writer, owner)"
+          - type: "Share type (user, group, domain, anyone)"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - share_result: "Permission object with sharing details"
+          - notification_status: "Email notification delivery status"
+    - name: list_folder_contents_task
+      description: "The task to list the contents of a folder in Google Drive."
+      interface:
+        inputs:
+          - folder_id: "Google Drive folder ID to list contents"
+          - page_size: "Optional number of items per page"
+          - order_by: "Optional sorting criteria"
+        dependencies:
+          - connect_to_gdrive_server_task
+        execution_context:
+          - None
+        outputs:
+          - folder_contents: "List of files and subfolders with metadata"
+          - pagination_info: "Next page token and total item count"
+
+  capability: Google_Calendar_operations_capability
+  description: "The capability to manage Google Calendar events including creating, reading, updating, and deleting calendar events with OAuth2 authentication."
+  tasks:
+    - name: authenticate_and_setup_service_task
+      description: "The task to authenticate and setup the Google Calendar service."
+      interface:
+        inputs:
+          - client_id: "Google OAuth2 client ID from environment variables"
+          - client_secret: "Google OAuth2 client secret from environment variables"
+          - refresh_token: "Optional refresh token for reauthorization"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - calendar_service: "Authenticated Google Calendar API service object"
+          - authentication_status: "Success or failure of authentication process"
+    - name: create_event_task
+      description: "The task to create a calendar event."
+      interface:
+        inputs:
+          - event_title: "Title of the calendar event"
+          - start_time: "Event start time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+          - end_time: "Event end time in ISO format (YYYY-MM-DDTHH:MM:SS)"
+          - description: "Optional event description"
+          - location: "Optional event location"
+          - attendees_email: "Optional list of attendee email addresses"
+          - timezone: "Event timezone (default: UTC)"
+        dependencies:
+          - authenticate_and_setup_service_task
+        execution_context:
+          - None
+        outputs:
+          - created_event: "Event object with ID, title, times, and sharing link"
+          - event_creation_status: "Success or error message with details"
+    - name: get_events_task
+      description: "The task to get events from Google Calendar."
+      interface:
+        inputs:
+          - max_results: "Maximum number of events to retrieve (default: 10)"
+          - time_min: "Optional minimum time to fetch events from (default: current time)"
+        dependencies:
+          - authenticate_and_setup_service_task
+        execution_context:
+          - None
+        outputs:
+          - events_list: "List of upcoming events with ID, summary, start time, and links"
+          - retrieval_status: "Success or error message"
+    - update_event_task
+      description: "The task to update a calendar event."
+      interface:
+        inputs:
+          - event_id: "Google Calendar event ID to update"
+          - event_title: "Optional new title for the event"
+          - start_time: "Optional new start time in ISO format"
+          - end_time: "Optional new end time in ISO format"
+          - description: "Optional new description"
+          - location: "Optional new location"
+          - attendees_email: "Optional new list of attendee email addresses"
+        dependencies:
+          - authenticate_and_setup_service_task
+        execution_context:
+          - None
+        outputs:
+          - updated_event: "Modified event object with new details"
+          - update_status: "Success or error message"
+    - delete_event_task
+      description: "The task to delete a calendar event."
+      interface:
+        inputs:
+          - event_id: "Google Calendar event ID to delete"
+        dependencies:
+          - authenticate_and_setup_service_task
+        execution_context:
+          - None
+        outputs:
+          - deletion_status: "Confirmation message with event ID"
+    - get_calendar_details_task
+      description: "The task to get the details of a calendar."
+      interface:
+        inputs:
+          - None
+        dependencies:
+          - authenticate_and_setup_service_task
+        execution_context:
+          - None
+        outputs:
+          - calendar_info: "Calendar ID, summary, description, timezone, and access role"
+          - details_status: "Success or error message"
+
+  capability: File_system_navigation_capability
+  description: "The capability to navigate, read, write, and manage files and directories in the local file system."
+  tasks:
+    - name: list_directory_task
+      description: "The task to list the contents of a directory."
+      interface:
+        inputs:
+          - directory_path: "Path to the directory to list contents"
+          - include_hidden: "Boolean flag to include hidden files/folders (default: false)"
+          - recursive: "Boolean flag for recursive directory listing (default: false)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - directory_contents: "List of files and subdirectories with metadata (name, size, modified date, permissions)"
+          - listing_status: "Success or error message"
+    - name: read_file_task
+      description: "The task to read a file from the local file system."
+      interface:
+        inputs:
+          - file_path: "Path to the file to read"
+          - encoding: "Text encoding format (default: utf-8)"
+          - binary_mode: "Boolean flag for binary file reading (default: false)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - file_content: "Content of the file as text or binary data"
+          - file_metadata: "File size, modified date, and permissions"
+          - read_status: "Success or error message"
+    - name: write_file_task
+      description: "The task to write to a file in the local file system."
+      interface:
+        inputs:
+          - file_path: "Path where to write the file"
+          - content: "Content to write to the file"
+          - encoding: "Text encoding format (default: utf-8)"
+          - append_mode: "Boolean flag to append vs overwrite (default: false)"
+          - create_dirs: "Boolean flag to create parent directories if needed (default: true)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - bytes_written: "Number of bytes written to file"
+          - write_status: "Success or error message"
+    - delete_file_task
+      description: "The task to delete a file from the local file system."
+      interface:
+        inputs:
+          - file_path: "Path to the file to delete"
+          - force: "Boolean flag to force deletion without confirmation (default: false)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - deletion_status: "Success or error message with file path"
+    - create_directory_task
+      description: "The task to create a directory in the local file system."
+      interface:
+        inputs:
+          - directory_path: "Path of the directory to create"
+          - parents: "Boolean flag to create parent directories if needed (default: true)"
+          - mode: "Optional directory permissions (default: 755)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - created_directory: "Path of the created directory"
+          - creation_status: "Success or error message"
+    - delete_directory_task
+      description: "The task to delete a directory from the local file system."
+      interface:
+        inputs:
+          - directory_path: "Path to the directory to delete"
+          - recursive: "Boolean flag to delete directory and all contents (default: true)"
+          - force: "Boolean flag to force deletion without confirmation (default: false)"
+        dependencies:
+          - list_directory_task
+        execution_context:
+          - None
+        outputs:
+          - deletion_status: "Success or error message with directory path"
+          - deleted_items_count: "Number of files and subdirectories deleted"
+    - move_file_task
+      description: "The task to move a file or directory in the local file system."
+      interface:
+        inputs:
+          - source_path: "Current path of the file or directory to move"
+          - destination_path: "New path where to move the file or directory"
+          - overwrite: "Boolean flag to overwrite destination if exists (default: false)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - move_status: "Success or error message"
+          - new_path: "Final path of the moved item"
+    - copy_file_task
+      description: "The task to copy a file or directory in the local file system."
+      interface:
+        inputs:
+          - source_path: "Path of the file or directory to copy"
+          - destination_path: "Path where to copy the file or directory"
+          - recursive: "Boolean flag for recursive directory copying (default: true)"
+          - overwrite: "Boolean flag to overwrite destination if exists (default: false)"
+        dependencies:
+          - None
+        execution_context:
+          - None
+        outputs:
+          - copy_status: "Success or error message"
+          - copied_path: "Path of the copied item"
+          - bytes_copied: "Total bytes copied"

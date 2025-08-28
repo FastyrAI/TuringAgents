@@ -1,0 +1,6 @@
+networkx==3.5
+PyYAML==6.0.2
+litellm==1.75.8
+python-dotenv==1.1.1
+tqdm==4.67.1
+plotly==6.3.0
