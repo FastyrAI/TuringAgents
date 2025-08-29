@@ -25,7 +25,7 @@ def _extract_entities_naive(text: str) -> List[str]:
 class ContextCompression:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
-        self.graph = GraphClient(self.settings.neo4j_uri, self.settings.neo4j_user, self.settings.neo4j_password)
+        self.graph = GraphClient(self.settings.graph_uri, self.settings.graph_user, self.settings.graph_password)
         self.router = LLMRouter()
         self.summarizer = Summarizer(self.router)
 
