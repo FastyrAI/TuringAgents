@@ -1,0 +1,24 @@
+model_list:
+  - model_name: gpt-4o
+    litellm_params:
+      model: azure/${AZURE_DEPLOYMENT_NAME}
+      api_base: ${AZURE_API_BASE}
+      api_key: ${AZURE_API_KEY}
+      rpm: 60
+      tpm: 100000
+
+general_settings:
+  master_key: ${LITELLM_MASTER_KEY}
+  database_url: ${DATABASE_URL}
+  database_connection_pool_limit: 10
+  proxy_batch_write_at: 60
+
+router_settings:
+  routing_strategy: usage-based-routing-v2
+  redis_host: ${REDIS_HOST}
+  redis_port: ${REDIS_PORT}
+  redis_password: ${REDIS_PASSWORD}
+
+features:
+  separate_health_app: true
+  pre_call_health_checks: true
