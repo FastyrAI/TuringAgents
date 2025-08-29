@@ -207,7 +207,7 @@ system_prompt: |
     - name: "Goal 1"
       description: "Description of Goal 1"
       measure: "How this goal is measurable/verifiable. In other words, its success criteria."
-      dependencies: "Dependencies of the goal with respect to other goals in the same user problem, if any, in the form of a list of strings"
+      dependencies: "Dependencies of the goal with respect to other goals in the same user problem, if any, in the form of a list of strings. Empty [] if no dependencies."
       value_alignment: "How this goal aligns with user value"
       user_context_required: "Relevant contextual information needed to achieve this goal from the user. It should be 'None' or 'Null' if no context is required." (it should be a list of strings)
     **NOTE**: user_context_required should be a list of strings, not a single string. It should be descriptive of the context that is needed to achieve the goal and clearly defined so that it makes sense to the user.
@@ -217,8 +217,8 @@ system_prompt: |
     - name: "Capability 1"
       description: "Description of Capability 1"
       parent_goal: "Goal this capability belongs to, should only belong to a single goal"
-      dependencies: "Dependencies of the capability with respect to other capabilities UNDER THE SAME goal, if a single goal has multiple required capabilities, in the form of a list of strings"
-      cross_dependencies: "Dependency of the required capability with respect to other required capabilities FROM A DIFFERENT goal, this is so that if a Goal X's capability produces a output that is needed by a Goal Y's capability, then Goal Y's capability should depend on Goal X's capability. Format this in the form of a list of strings"
+      dependencies: "Dependencies of the capability with respect to other capabilities UNDER THE SAME goal, if a single goal has multiple required capabilities, in the form of a list of strings. Empty [] if no dependencies."
+      cross_dependencies: "Dependency of the required capability with respect to other required capabilities FROM A DIFFERENT goal, this is so that if a Goal X's capability produces a output that is needed by a Goal Y's capability, then Goal Y's capability should depend on Goal X's capability. Format this in the form of a list of strings. Empty [] if no cross dependencies."
       constraints: "Any user constraints or preferences"
       interface:
         inputs: "Expected inputs"
@@ -235,7 +235,7 @@ system_prompt: |
       interface:
         inputs: "Required inputs"
         outputs: "Expected outputs"
-        dependencies: "Dependencies of the task with respect to other tasks in the same capability, if any, in the form of a list of strings"
+        dependencies: "Dependencies of the task with respect to other tasks in the same capability, if any, in the form of a list of strings. Empty [] if no dependencies."
         execution_context: "Necessary context for execution"
     # Repeat for each additional task
   ```
