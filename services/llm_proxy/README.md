@@ -28,6 +28,20 @@ docker compose -f docker-compose.yml -f services/llm_proxy/compose/docker-compos
 services/llm_proxy/scripts/smoke.sh
 ```
 
+## End-to-End Tests
+
+Run e2e tests locally (requires Docker):
+```bash
+services/llm_proxy/scripts/run_e2e.sh
+```
+
+Or run manually:
+```bash
+docker compose -f docker-compose.yml -f services/llm_proxy/compose/docker-compose.override.yml --env-file services/llm_proxy/.env up -d
+python -m pip install -e services/llm_proxy[test]
+pytest -q services/llm_proxy/tests/e2e
+```
+
 Health:
 - http://localhost:4000/health
 - http://localhost:4000/health/liveliness

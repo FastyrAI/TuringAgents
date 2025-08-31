@@ -1,0 +1,22 @@
+name: llm_proxy e2e
+
+on:
+  pull_request:
+    paths:
+      - 'services/llm_proxy/**'
+      - 'docker-compose.yml'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Create env file
+        run: |
+          cp services/llm_proxy/.env.example services/llm_proxy/.env
+      - name: Run e2e tests
+        run: |
+          bash services/llm_proxy/scripts/run_e2e.sh
