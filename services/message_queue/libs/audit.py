@@ -34,7 +34,7 @@ import logging
 from sqlalchemy.dialects.postgresql import insert
 
 from libs.config import ENVIRONMENT
-from libs.db import get_session
+from libs.db import get_session, is_database_configured
 from libs.orm_models import Message, MessageEvent, DLQMessage
 from libs.metrics import (
     AUDIT_EVENT_ENQUEUED_TOTAL,
@@ -192,9 +192,18 @@ class AuditEventBatcher:
 
         In tests, this method can be monkeypatched to capture writes.
         """
-        async with get_session() as session:
-            await session.execute(MessageEvent.__table__.insert().values(items))
-            await session.commit()
+        # Best-effort: if DB isn't configured, no-op and log a warning once per flush.
+        if not is_database_configured():
+            logging.getLogger(__name__).warning("audit flush skipped: database is not configured")
+            return
+        try:
+            async with get_session() as session:
+                table: Any = getattr(MessageEvent, "__table__")
+                await session.execute(table.insert().values(items))
+                await session.commit()
+        except Exception as exc:  # noqa: BLE001
+            _log_dev_error("batch insert message_events", exc)
+            return
 
     async def flush(self, reason: str = "manual") -> None:
         """Flush any pending events immediately.
@@ -210,7 +219,7 @@ class AuditEventBatcher:
         Example:
             >>> await batcher.shutdown()
         """
-        if self.is_running:
+        if self.is_running and self._task is not None:
             self._stop_event.set()
             self._flush_now.set()
             # Give the task a moment to exit
@@ -262,23 +271,6 @@ def _log_dev_error(operation: str, exc: Exception) -> None:
         logging.getLogger(__name__).exception("audit storage error during %s", operation, exc_info=exc)
 
 
-async def _insert_event(payload: dict[str, Any]) -> None:
-    """Persist a single row into ``message_events``.
-
-    Best-effort: any exception is swallowed in production, but logged in
-    development/staging to aid debugging.
-
-    Example:
-        await _insert_event({"org_id": "demo", "event_type": "created"})
-    """
-    try:
-        async with get_session() as session:
-            table: Any = getattr(MessageEvent, "__table__")
-            await session.execute(table.insert().values(**payload))
-            await session.commit()
-    except Exception as exc:  # noqa: BLE001
-        _log_dev_error("insert message_event", exc)
-        return
 
 
 async def record_message_event(event: dict[str, Any] | "MessageEventRecord") -> None:

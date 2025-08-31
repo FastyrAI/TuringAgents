@@ -121,3 +121,31 @@ async def get_session() -> AsyncIterator[Any]:
         yield session
 
 
+def is_database_configured() -> bool:
+    """Return True if a database connection URL is present in environment.
+
+    Checks the same candidate keys used by ``get_engine`` without creating
+    the engine. Intended for guarding best-effort audit writes in contexts
+    where the database is optional (e.g., RabbitMQ-only e2e jobs).
+
+    Example:
+        >>> if not is_database_configured():
+        ...     print("DB unavailable; skipping audit writes")
+    """
+    candidate_env_keys = (
+        "DATABASE_URL",
+        "SUPABASE_DB_URL",
+        "SUPABASE_DB_CONNECTION",
+        "SUPABASE_POSTGRES_URL",
+        "POSTGRES_URL",
+        "POSTGRES_CONNECTION_STRING",
+        # Legacy fallback
+        "SUPABASE_URL",
+    )
+    for key in candidate_env_keys:
+        value = os.getenv(key, "").strip()
+        if value:
+            return True
+    return False
+
+
