@@ -89,6 +89,9 @@ ENABLE_SVO_RELATIONS = True  # Subject-verb-object relationships
 ENABLE_COOCCURRENCE_RELATIONS = True  # Co-occurrence relationships
 MAX_RELATIONS_PER_DOC = 30  # Maximum relationships to create
 
+# Maximum tokens allowed in uploaded files for smooth extraction
+MAX_TOKENS_PER_FILE = 50000  # Approximately 37,500 words or 125 pages
+
 # Words to ignore (common words that don't add value)
 IGNORE_WORDS = {
     "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",

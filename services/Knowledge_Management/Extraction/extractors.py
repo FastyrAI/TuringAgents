@@ -28,6 +28,25 @@ class GeminiProcessor:
         """Extract entities and relations using Gemini LLM"""
         if not self.enabled or not ENABLE_GEMINI_EXTRACTION:
             return []
+        
+        # Check if content is actually meaningful text or just error messages/metadata
+        if not content or len(content.strip()) < 10:
+            print(f"Warning: Content too short or empty for extraction: {repr(content)}")
+            return []
+        
+        # Skip extraction if content appears to be an error message or metadata
+        error_indicators = [
+            "Error extracting",
+            "Install with: pip install",
+            "contains no extractable text",
+            "Binary file detected",
+            "Error reading file"
+        ]
+        
+        for indicator in error_indicators:
+            if indicator.lower() in content.lower():
+                print(f"Warning: Content appears to be error message or metadata, skipping extraction: {content[:100]}...")
+                return []
             
         queries = []
         
@@ -165,7 +184,8 @@ class GeminiProcessor:
                             
                             # print(f"Created relationship: {subject} --[{clean_predicate}]--> {obj}")
                         else:
-                            print(f"Gemini skipped relationship: {subject} --[{predicate}]--> {obj} (entities not found)")
+                            # print(f"Gemini skipped relationship: {subject} --[{predicate}]--> {obj} (entities not found)")
+                            pass
                         
         except Exception as e:
             print(f"Error in Gemini extraction: {e}")

@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse
 from Model.models import FileUploadResponse, FileInfo
 from FalkorDB.database import DatabaseManager
 from Extraction.extractors import GeminiProcessor
-from config import UPLOAD_DIR
+from Extraction.code_processor import CodeProcessor
+from config import UPLOAD_DIR, MAX_TOKENS_PER_FILE
 
 # Initialize router
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/uploads", tags=["Uploads"])
 # Initialize services
 db_manager = DatabaseManager()
 gemini_processor = GeminiProcessor()
+code_processor = CodeProcessor()
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -21,28 +23,38 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 #   http://localhost:8000/uploads/upload
 
 @router.post("/upload", response_model=FileUploadResponse)
-async def upload_text_file(
+async def upload_file(
     file: UploadFile = File(...),
     user_id: str = Form(...),
     description: str = Form("")
 ):
-    """Upload a text file and extract knowledge from it"""
+    """Upload any file and extract knowledge from it"""
     
-    # Only allow text files
-    if file.content_type != 'text/plain':
-        raise HTTPException(
-            status_code=400, 
-            detail="Only text files (.txt) are supported"
-        )
+    # Validate file size (10MB limit for all files)
+    if file.size and file.size > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size too large. Maximum 10MB allowed.")
     
-    # Validate file size (1MB limit for text files)
-    if file.size and file.size > 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File size too large. Maximum 1MB allowed.")
+    # Validate file type - only allow text and code files
+    allowed_extensions = [
+        '.txt', '.md', '.csv', '.json', '.xml', '.html', '.htm',  # Text files
+        '.py', '.js', '.ts', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt',  # Code files
+        '.sql', '.sh', '.bat', '.ps1', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf',  # Config/script files
+        '.css', '.scss', '.sass', '.less', '.vue', '.jsx', '.tsx', '.r', '.m', '.pl', '.lua'  # More code files
+    ]
+    
+    if file.filename:
+        file_extension = os.path.splitext(file.filename)[1].lower()
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"File type '{file_extension}' is not supported. Please upload text files (.txt, .md, .csv, .json, .xml, .html) or code files (.py, .js, .java, .cpp, etc.)."
+            )
     
     try:
-        # Generate unique filename
+        # Generate unique filename with original extension
         file_id = str(uuid.uuid4())
-        filename = f"{file_id}.txt"
+        original_extension = os.path.splitext(file.filename)[1] if file.filename else ""
+        filename = f"{file_id}{original_extension}"
         file_path = os.path.join(UPLOAD_DIR, filename)
         
         # Save file
@@ -65,6 +77,29 @@ async def upload_text_file(
         # Extract text content from file
         extracted_content = await extract_text_content(file_path)
         
+        # Check if content was extracted successfully
+        if not extracted_content or extracted_content.strip() == "":
+            # Clean up file
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise HTTPException(
+                status_code=400, 
+                detail="File appears to be empty or could not be read. Please check the file content and try again."
+            )
+        
+        # Check token limit before extraction
+        # Simple token estimation (words * 1.33 for rough token count)
+        estimated_tokens = len(extracted_content.split()) * 1.33
+        
+        if estimated_tokens > MAX_TOKENS_PER_FILE:
+            # Clean up file
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise HTTPException(
+                status_code=400, 
+                detail=f"File too large for processing. Estimated {int(estimated_tokens):,} tokens exceeds the limit of {MAX_TOKENS_PER_FILE:,} tokens. Please upload a smaller file or split it into multiple files."
+            )
+        
         if extracted_content:
             # Store extracted content as a message
             stored_message = db_manager.store_message(
@@ -73,17 +108,24 @@ async def upload_text_file(
                 user_id=user_id,
                 file_id=file_id
             )
+                        # Check if this is a code file
+            file_extension = os.path.splitext(file_path)[1].lower()
+            code_extensions = ['.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.h', '.hpp', '.cs', '.php']
             
-           
+            if file_extension in code_extensions:
+                # Process as code file
+                print(f"Processing {file_extension} file as code")
+                code_queries = code_processor.process_code_with_calls(file_path, stored_message["message_id"])
+                all_queries = code_queries
+            else:
+                # Process as text file using Gemini
+                print(f"Processing {file_extension} file as text")
+                gemini_queries = gemini_processor.extract_entities_and_relations(
+                    content=extracted_content,
+                    message_id=stored_message["message_id"]
+                )
+                all_queries = gemini_queries
             
-            # Extract entities and relations from file content using Gemini
-            gemini_queries = gemini_processor.extract_entities_and_relations(
-                content=extracted_content,
-                message_id=stored_message["message_id"]
-            )
-            
-          
-            all_queries = gemini_queries
             db_manager.execute_queries(all_queries)
         
         return FileUploadResponse(
@@ -92,7 +134,7 @@ async def upload_text_file(
             file_size=len(content),
             content_type=file.content_type,
             user_id=user_id,
-            message="Text file uploaded and processed successfully"
+            message="File uploaded and processed successfully"
         )
         
     except Exception as e:
@@ -106,14 +148,14 @@ async def upload_text_file(
 
 @router.get("/files/{user_id}", response_model=List[FileInfo])
 def get_user_files(user_id: str):
-    """Get all text files uploaded by a user"""
+    """Get all files uploaded by a user"""
     files = db_manager.get_user_files(user_id)
     return files
 
 #   http://localhost:8000/uploads/files/{file_id},{user_id}
 @router.delete("/files/{file_id}")
 def delete_file(file_id: str, user_id: str):
-    """Delete a text file and its associated data"""
+    """Delete a file and its associated data"""
     try:
         # Get file info
         file_info = db_manager.get_file(file_id)
@@ -138,9 +180,23 @@ def delete_file(file_id: str, user_id: str):
 
 
 async def extract_text_content(file_path: str) -> str:
-    """Extract text content from text file"""
+    """Extract text content from text and code files"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
+        file_extension = os.path.splitext(file_path)[1].lower()
+        
+        # All supported files are text-based, so read directly
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except UnicodeDecodeError:
+            # Try with different encoding if UTF-8 fails
+            try:
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    return f.read()
+            except Exception as e:
+                return f"Error reading file with different encoding: {str(e)}"
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+                
     except Exception as e:
         return f"Error extracting content: {str(e)}"
