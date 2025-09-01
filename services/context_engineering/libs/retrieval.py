@@ -100,9 +100,13 @@ class HybridRetriever:
             return RankedList("bm25", [])
         toks = tokenize(query)
         scores = self._bm25.get_scores(toks)
-        pairs = list(zip(self._corpus_ids, scores))
-        pairs.sort(key=lambda x: x[1], reverse=True)
-        items = [RetrievedItem(id=_id, text=self._corpus_texts[idx], score=float(score)) for idx, (_id, score) in enumerate(pairs[: max(k * 3, k)])]
+        # Keep track of original corpus indices to fetch correct texts after sorting
+        pairs: List[Tuple[int, str, float]] = list(zip(range(len(self._corpus_ids)), self._corpus_ids, scores))
+        pairs.sort(key=lambda x: x[2], reverse=True)
+        items = [
+            RetrievedItem(id=_id, text=self._corpus_texts[orig_idx], score=float(score))
+            for orig_idx, _id, score in pairs[: max(k * 3, k)]
+        ]
         return RankedList("bm25", items)
 
     def _vector_rank(self, query: str, k: int) -> RankedList:
@@ -110,9 +114,13 @@ class HybridRetriever:
             return RankedList("vector", [])
         query_vec = hash_embed([query])
         sims = cosine_similarity(query_vec, self._embeddings).ravel()
-        pairs = list(zip(self._corpus_ids, sims))
-        pairs.sort(key=lambda x: x[1], reverse=True)
-        items = [RetrievedItem(id=_id, text=self._corpus_texts[idx], score=float(score)) for idx, (_id, score) in enumerate(pairs[: max(k * 3, k)])]
+        # Keep track of original corpus indices to fetch correct texts after sorting
+        pairs: List[Tuple[int, str, float]] = list(zip(range(len(self._corpus_ids)), self._corpus_ids, sims))
+        pairs.sort(key=lambda x: x[2], reverse=True)
+        items = [
+            RetrievedItem(id=_id, text=self._corpus_texts[orig_idx], score=float(score))
+            for orig_idx, _id, score in pairs[: max(k * 3, k)]
+        ]
         return RankedList("vector", items)
 
     def retrieve(self, query: str, k: int = 10, priors: Dict[str, float] | None = None) -> List[RetrievedItem]:
