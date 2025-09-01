@@ -36,8 +36,12 @@ fi
 echo "[e2e] Starting LiteLLM via docker compose..."
 docker compose -f docker-compose.yml -f services/llm_proxy/compose/docker-compose.override.yml --env-file "$ENV_FILE" up -d
 
-echo "[e2e] Installing test dependencies..."
-python -m pip install -e services/llm_proxy[test]
+echo "[e2e] Installing test dependencies (wheels only)..."
+python -m pip install -U pip setuptools wheel
+python -m pip install --only-binary=:all: -U \
+  httpx==0.27.2 \
+  pytest==8.3.3 \
+  python-dotenv==1.0.1
 
 echo "[e2e] Running pytest..."
 pytest -q services/llm_proxy/tests/e2e
