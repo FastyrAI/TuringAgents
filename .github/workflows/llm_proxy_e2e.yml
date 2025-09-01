@@ -19,17 +19,17 @@ jobs:
           if [ -f services/llm_proxy/.env.example ]; then
             cp services/llm_proxy/.env.example services/llm_proxy/.env
           else
-            cat > services/llm_proxy/.env <<'EOF'
-LITELLM_MASTER_KEY=sk-dev-1234
-DATABASE_URL=postgresql://llmproxy:pass@db:5432/litellm
-AZURE_API_KEY=
-AZURE_API_BASE=
-AZURE_DEPLOYMENT_NAME=
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=
-SEPARATE_HEALTH_APP=1
-EOF
+            printf "%s\n" \
+              "LITELLM_MASTER_KEY=sk-dev-1234" \
+              "DATABASE_URL=postgresql://llmproxy:pass@db:5432/litellm" \
+              "AZURE_API_KEY=" \
+              "AZURE_API_BASE=" \
+              "AZURE_DEPLOYMENT_NAME=" \
+              "REDIS_HOST=redis" \
+              "REDIS_PORT=6379" \
+              "REDIS_PASSWORD=" \
+              "SEPARATE_HEALTH_APP=1" \
+              > services/llm_proxy/.env
           fi
       - name: Run e2e tests
         run: |
