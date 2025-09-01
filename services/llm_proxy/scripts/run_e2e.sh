@@ -33,8 +33,12 @@ EOF
   fi
 fi
 
-echo "[e2e] Starting LiteLLM via docker compose..."
-docker compose -f docker-compose.yml -f services/llm_proxy/compose/docker-compose.override.yml --env-file "$ENV_FILE" up -d
+echo "[e2e] Starting LiteLLM via docker compose (only required services)..."
+docker compose \
+  -f docker-compose.yml \
+  -f services/llm_proxy/compose/docker-compose.override.yml \
+  --env-file "$ENV_FILE" \
+  up -d litellm db redis
 
 echo "[e2e] Installing test dependencies (wheels only)..."
 python -m pip install -U pip setuptools wheel
