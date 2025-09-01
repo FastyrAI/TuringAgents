@@ -22,9 +22,8 @@ if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" <<'EOF'
 LITELLM_MASTER_KEY=sk-dev-1234
 DATABASE_URL=postgresql://llmproxy:pass@db:5432/litellm
-AZURE_API_KEY=
-AZURE_API_BASE=
-AZURE_DEPLOYMENT_NAME=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
 REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_PASSWORD=
@@ -32,6 +31,20 @@ SEPARATE_HEALTH_APP=1
 EOF
   fi
 fi
+
+# Ensure a litellm config file exists for compose mount
+CONFIG_EXAMPLE="services/llm_proxy/config/litellm_config.example.yaml"
+CONFIG_FILE="services/llm_proxy/config/litellm_config.yaml"
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "[e2e] No config found at $CONFIG_FILE. Copying example..."
+  cp "$CONFIG_EXAMPLE" "$CONFIG_FILE"
+fi
+
+echo "[e2e] Rendering config from example with env vars..."
+python services/llm_proxy/scripts/render_config.py \
+  --in services/llm_proxy/config/litellm_config.example.yaml \
+  --out services/llm_proxy/config/litellm_config.yaml \
+  --env services/llm_proxy/.env
 
 echo "[e2e] Starting LiteLLM via docker compose (only required services)..."
 docker compose \

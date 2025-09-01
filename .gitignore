@@ -16,6 +16,7 @@ coverage.xml
 .env
 .env.*
 .envrc
+services/llm_proxy/config/litellm_config.yaml
 
 # OS/Editor
 .DS_Store

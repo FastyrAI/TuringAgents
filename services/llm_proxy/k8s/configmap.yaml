@@ -7,9 +7,14 @@ data:
     model_list:
       - model_name: gpt-4o
         litellm_params:
-          model: azure/${AZURE_DEPLOYMENT_NAME}
-          api_base: ${AZURE_API_BASE}
-          api_key: ${AZURE_API_KEY}
+          model: openai/gpt-4o
+          api_key: ${OPENAI_API_KEY}
+          rpm: 60
+          tpm: 100000
+      - model_name: claude-3-5-sonnet-latest
+        litellm_params:
+          model: anthropic/claude-3-5-sonnet-latest
+          api_key: ${ANTHROPIC_API_KEY}
           rpm: 60
           tpm: 100000
     general_settings:

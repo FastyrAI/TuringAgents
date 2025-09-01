@@ -7,7 +7,7 @@ services:
     env_file:
       - services/llm_proxy/.env
     volumes:
-      - ./services/llm_proxy/config/litellm_config.example.yaml:/app/config.yaml:ro
+      - ./services/llm_proxy/config/litellm_config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml", "--detailed_debug"]
     depends_on:
       - db

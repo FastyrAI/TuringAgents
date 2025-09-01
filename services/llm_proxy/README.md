@@ -18,8 +18,13 @@ cp services/llm_proxy/config/litellm_config.example.yaml services/llm_proxy/conf
 cp services/llm_proxy/.env.example services/llm_proxy/.env
 ```
 
-2) Start services:
+2) Render config and start services:
 ```bash
+python services/llm_proxy/scripts/render_config.py \
+  --in services/llm_proxy/config/litellm_config.example.yaml \
+  --out services/llm_proxy/config/litellm_config.yaml \
+  --env services/llm_proxy/.env
+
 docker compose -f docker-compose.yml -f services/llm_proxy/compose/docker-compose.override.yml --env-file services/llm_proxy/.env up -d
 ```
 
@@ -62,7 +67,7 @@ See `.env.example`. Critical:
 - `LITELLM_MASTER_KEY` (must start with `sk-`)
 - `DATABASE_URL`
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
-- Provider credentials (e.g., `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_DEPLOYMENT_NAME`)
+- Provider credentials (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
 ## Security
 - Use non-root images in production
