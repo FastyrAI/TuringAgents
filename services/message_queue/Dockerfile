@@ -5,6 +5,15 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# System build tools for compiling Python packages when wheels are unavailable
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc \
+      g++ \
+      pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install uv
 RUN pip install --no-cache-dir uv==0.4.20
 
