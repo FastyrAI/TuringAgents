@@ -3,6 +3,7 @@
 Render LiteLLM config by expanding ${VAR} placeholders from the example
 template using values from services/llm_proxy/.env and the current
 environment, writing the standard litellm_config.yaml used by the container.
+This script fails fast if the specified .env file does not exist.
 
 Why:
 - LiteLLM does not expand environment variables inside YAML. Without rendering,
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 
@@ -98,7 +100,16 @@ def main() -> None:
                         help=f".env file to load (default: {default_env})")
     args = parser.parse_args()
 
-    # Load env from file (if present) and merge into expansion context
+    # Require .env file to exist; fail fast to avoid rendering secrets as empty
+    if not args.env_path.exists():
+        print(
+            f"[render_config] ERROR: .env file not found at {args.env_path}. "
+            "Create it (see services/llm_proxy/.env.example) or pass --env.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Load env from file and merge into expansion context
     file_env = parse_dotenv_file(args.env_path)
 
     # Read template YAML and expand placeholders
