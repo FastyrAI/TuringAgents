@@ -191,4 +191,223 @@ class DatabaseManager:
             "timestamp": timestamp
         }
     
+    # Helper Functions for FalkorDB Operations
+    
+    def add_entity(self, label: str, properties: Dict[str, Any]) -> str:
+        """Create a new node with a given label and properties"""
+        # Generate a unique ID if not provided
+        if 'id' not in properties:
+            properties['id'] = str(uuid.uuid4())
+        
+        # Build CREATE query
+        property_strings = []
+        for key, value in properties.items():
+            if isinstance(value, str):
+                property_strings.append(f"{key}: '{value}'")
+            else:
+                property_strings.append(f"{key}: {value}")
+        
+        properties_str = ", ".join(property_strings)
+        query = f"CREATE (n:{label} {{{properties_str}}}) RETURN n.id as id"
+        
+        try:
+            result = self.graph.query(query)
+            if result.result_set:
+                return result.result_set[0][0]
+            return properties['id']
+        except Exception as e:
+            print(f"Error creating entity: {e}")
+            return None
+    
+    def get_entity_by_id(self, entity_id: str) -> Dict[str, Any]:
+        """Fetch a node by its internal id"""
+        query = f"MATCH (n) WHERE n.id = '{entity_id}' RETURN n"
+        
+        try:
+            result = self.graph.query(query)
+            if result.result_set:
+                node = result.result_set[0][0]
+                return {
+                    "id": node.properties.get('id'),
+                    "labels": list(node.labels),
+                    "properties": dict(node.properties)
+                }
+            return None
+        except Exception as e:
+            print(f"Error fetching entity: {e}")
+            return None
+    
+    def update_entity_property(self, entity_id: str, key: str, value: Any) -> bool:
+        """Update a single property (fact) on a node"""
+        if isinstance(value, str):
+            query = f"MATCH (n) WHERE n.id = '{entity_id}' SET n.{key} = '{value}' RETURN n"
+        else:
+            query = f"MATCH (n) WHERE n.id = '{entity_id}' SET n.{key} = {value} RETURN n"
+        
+        try:
+            result = self.graph.query(query)
+            return len(result.result_set) > 0
+        except Exception as e:
+            print(f"Error updating entity property: {e}")
+            return False
+    
+    def delete_entity(self, entity_id: str) -> bool:
+        """Delete a node (and optionally its relationships)"""
+        query = f"""
+        MATCH (n) WHERE n.id = '{entity_id}'
+        OPTIONAL MATCH (n)-[r]-()
+        DELETE r, n
+        """
+        
+        try:
+            self.graph.query(query)
+            return True
+        except Exception as e:
+            print(f"Error deleting entity: {e}")
+            return False
+    
+    def create_relationship(self, src_id: str, rel_type: str, dst_id: str) -> bool:
+        """Create a relationship between two nodes"""
+        query = f"""
+        MATCH (src) WHERE src.id = '{src_id}'
+        MATCH (dst) WHERE dst.id = '{dst_id}'
+        CREATE (src)-[r:{rel_type}]->(dst)
+        RETURN r
+        """
+        
+        try:
+            result = self.graph.query(query)
+            return len(result.result_set) > 0
+        except Exception as e:
+            print(f"Error creating relationship: {e}")
+            return False
+    
+    def get_neighbors(self, entity_id: str, depth: int = 1) -> List[Dict[str, Any]]:
+        """Get all connected nodes within a given depth"""
+        if depth == 1:
+            query = f"""
+            MATCH (n)-[r]-(neighbor) 
+            WHERE n.id = '{entity_id}'
+            RETURN DISTINCT neighbor, type(r) as relationship_type
+            """
+        else:
+            query = f"""
+            MATCH (n)-[r*1..{depth}]-(neighbor) 
+            WHERE n.id = '{entity_id}'
+            RETURN DISTINCT neighbor, type(r[0]) as relationship_type
+            """
+        
+        try:
+            result = self.graph.query(query)
+            neighbors = []
+            for record in result.result_set:
+                neighbor_node = record[0]
+                relationship_type = record[1]
+                neighbors.append({
+                    "id": neighbor_node.properties.get('id'),
+                    "labels": list(neighbor_node.labels),
+                    "properties": dict(neighbor_node.properties),
+                    "relationship_type": relationship_type
+                })
+            return neighbors
+        except Exception as e:
+            print(f"Error getting neighbors: {e}")
+            return []
+    
+    def insert_summary(self, session_id: str, summary_text: str) -> str:
+        """Create a Summary node linked to a session"""
+        summary_id = str(uuid.uuid4())
+        timestamp = datetime.now().isoformat()
+        
+        query = f"""
+        MERGE (s:Session {{id: '{session_id}'}})
+        CREATE (sum:Summary {{id: '{summary_id}', text: '{summary_text}', timestamp: '{timestamp}'}})
+        CREATE (s)-[:HAS_SUMMARY]->(sum)
+        RETURN sum.id as id
+        """
+        
+        try:
+            result = self.graph.query(query)
+            if result.result_set:
+                return result.result_set[0][0]
+            return summary_id
+        except Exception as e:
+            print(f"Error inserting summary: {e}")
+            return None
+    
+    def get_session_context(self, session_id: str) -> List[Dict[str, Any]]:
+        """Retrieve all nodes/messages linked to a session"""
+        query = f"""
+        MATCH (s:Session {{id: '{session_id}'}})-[r]-(related)
+        RETURN related, type(r) as relationship_type
+        """
+        
+        try:
+            result = self.graph.query(query)
+            context = []
+            for record in result.result_set:
+                node = record[0]
+                relationship_type = record[1]
+                context.append({
+                    "id": node.properties.get('id'),
+                    "labels": list(node.labels),
+                    "properties": dict(node.properties),
+                    "relationship_type": relationship_type
+                })
+            return context
+        except Exception as e:
+            print(f"Error getting session context: {e}")
+            return []
+    
+    def search_entities_by_property(self, label: str, key: str, value: Any) -> List[Dict[str, Any]]:
+        """Find nodes by property filter"""
+        if isinstance(value, str):
+            query = f"MATCH (n:{label}) WHERE n.{key} = '{value}' RETURN n"
+        else:
+            query = f"MATCH (n:{label}) WHERE n.{key} = {value} RETURN n"
+        
+        try:
+            result = self.graph.query(query)
+            entities = []
+            for record in result.result_set:
+                node = record[0]
+                entities.append({
+                    "id": node.properties.get('id'),
+                    "labels": list(node.labels),
+                    "properties": dict(node.properties)
+                })
+            return entities
+        except Exception as e:
+            print(f"Error searching entities: {e}")
+            return []
+    
+    def update_fact_conflict_resolution(self, entity_id: str, key: str, new_value: Any) -> bool:
+        """Update fact with conflict resolution - adds timestamp and version info"""
+        timestamp = datetime.now().isoformat()
+        version_key = f"{key}_version"
+        timestamp_key = f"{key}_timestamp"
+        
+        # Get current version
+        current_entity = self.get_entity_by_id(entity_id)
+        if not current_entity:
+            return False
+        
+        current_version = current_entity['properties'].get(version_key, 0)
+        new_version = current_version + 1
+        
+        # Update with version and timestamp
+        updates = [
+            (key, new_value),
+            (version_key, new_version),
+            (timestamp_key, timestamp)
+        ]
+        
+        try:
+            for update_key, update_value in updates:
+                self.update_entity_property(entity_id, update_key, update_value)
+            return True
+        except Exception as e:
+            print(f"Error updating fact with conflict resolution: {e}")
+            return False
+    
 
