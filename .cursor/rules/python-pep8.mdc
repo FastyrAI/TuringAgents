@@ -1,0 +1,63 @@
+---
+globs: **/*.py
+description: Python PEP 8 style and best practices to prioritize readability across the repo.
+---
+
+## Python Readability and PEP 8 Guidelines
+
+- Target Python versions per service `pyproject.toml`. Use type hints everywhere practical.
+- Follow PEP 8 for naming, spacing, imports, and layout.
+- Prefer explicit imports over wildcard imports.
+- Keep modules focused and avoid circular dependencies.
+
+### Naming conventions
+
+- Modules and packages: `lower_snake_case`
+- Variables and functions: `lower_snake_case`
+- Classes and exceptions: `CapWords`
+- Constants: `UPPER_SNAKE_CASE`
+- Private members: prefix with single underscore `_internal_name`
+
+### Layout and spacing
+
+- Indentation: 4 spaces (no tabs). Match existing files when different.
+- Max line length: aim for 100-120, wrap thoughtfully beyond 79 where clarity improves.
+- One import per line; group as: standard lib, third-party, local.
+- Blank lines: separate top-level defs and class methods logically.
+
+### Typing and docs
+
+- Use type hints for function signatures and key variables.
+- Docstrings: describe purpose, why it exists, parameters, returns, raises, and examples.
+- Prefer `pydantic`/`dataclasses` for data structures over ad-hoc dicts.
+
+### Functions and classes
+
+- Small, single-responsibility functions; use guard clauses.
+- Avoid deep nesting; refactor into helpers.
+- Avoid mutable default arguments; use `None` and document defaults.
+
+### Error handling
+
+- Catch only specific exceptions. Avoid blanket `except Exception` unless re-raising.
+- Provide clear messages; include contextual data but never secrets.
+- Do not swallow exceptions silently. Log or propagate appropriately.
+
+### Imports and dependencies
+
+- Keep imports at module top; avoid runtime imports unless necessary.
+- Prefer absolute imports within packages.
+- Remove unused imports and variables.
+
+### Testing and tooling
+
+- Write pytest tests for core logic. Keep tests deterministic and isolated.
+- Use formatters/linters (e.g., `ruff`/`flake8`, `black`/`ruff format`, `mypy`) as applicable.
+- Avoid global state; prefer dependency injection.
+
+### I/O and concurrency
+
+- Prefer `async` for network/file I/O where appropriate; avoid blocking calls in async.
+- Use context managers for resources.
+- Timeouts are mandatory for network operations.
+

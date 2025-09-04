@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+description: Repository-wide readability standards for all languages and files.
+---
+
+## Readability-First Coding Standards
+
+- Favor clarity over cleverness. Choose explicit, self-explanatory code.
+- Prefer meaningful, descriptive names for variables, functions, classes, and modules.
+- Keep functions small and cohesive; one clear responsibility each.
+- Use early returns to reduce nesting and improve flow.
+- Handle errors explicitly; avoid silent failures.
+- Write high-verbosity, human-readable code. Minimize micro-optimizations unless profiled.
+- Keep side effects obvious; avoid hidden mutations and implicit state changes.
+- Keep modules focused; avoid god objects and grab-bag utilities.
+- Organize imports deterministically and remove unused imports/variables.
+- Keep line lengths reasonable; wrap long expressions across lines.
+- Maintain consistent formatting that matches the project’s existing style.
+- Favor composition over inheritance when possible.
+- Write platform-agnostic code unless platform specificity is required.
+- Ensure comments explain the “why,” not the “what,” when non-obvious.
+
+### Documentation requirements
+
+- Every class, function, and method must include concise documentation explaining purpose, usage, inputs/outputs, and examples where helpful.
+- Update docs concurrently with code changes.
+- Keep README and service docs accurate and task-oriented.
+
+### Testing and safety
+
+- Write tests for critical paths and tricky edge cases.
+- Prefer deterministic, reproducible tests. Isolate I/O with abstractions.
+- Validate inputs and fail fast with helpful error messages.
+
+### Performance and scalability
+
+- Optimize only after measurement. Use profiling and metrics to justify changes.
+- Avoid premature complexity; keep solutions as simple as possible to meet requirements.
+
+### Security and reliability
+
+- Avoid leaking secrets. Use environment variables and secret managers.
+- Validate external inputs rigorously. Treat network and disk as untrusted.
+- Log with context; avoid sensitive data in logs.
+
