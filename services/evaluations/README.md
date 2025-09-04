@@ -51,4 +51,3 @@ Expected schemas:
 Task mapping:
 - `--tasks summary` → `tests/test_summarization.py`
 - `--tasks context-compression` → `tests/test_context_compression.py` (progressive and E2E)
-- `--tasks graph` → runs only E2E graph QA inside `test_context_compression.py`
