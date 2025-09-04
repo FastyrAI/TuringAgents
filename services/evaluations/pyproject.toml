@@ -1,0 +1,25 @@
+[project]
+name = "evaluations"
+version = "0.1.0"
+description = "Turing Agents – Evaluation Pipeline CLI (runs existing DeepEval tests)"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "pytest>=7.0.0",
+  "deepeval>=0.20.0",
+  # Optional reporting plugins; CLI will detect availability at runtime
+  "pytest-html>=4.1.1",
+  "pytest-json-report>=1.5.0",
+]
+
+[project.scripts]
+ta-eval = "services.evaluations.cli:main"
+deepeval-run = "services.evaluations.deepeval_runner:main"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["services.evaluations"]
+
+

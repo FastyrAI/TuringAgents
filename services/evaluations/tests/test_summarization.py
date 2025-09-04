@@ -28,31 +28,54 @@ if str(REPO_ROOT) not in sys.path:
 from services.context_engineering.libs.summarize import Summarizer
 
 
+def _read_json_or_jsonl(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists():
+        pytest.fail(f"Dataset file not found: {path}")
+    if path.suffix.lower() == ".jsonl":
+        records: List[Dict[str, Any]] = []
+        with open(path, "r", encoding="utf-8") as f:
+            for ln in f:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    obj = __import__("json").loads(ln)
+                except Exception as exc:  # pragma: no cover
+                    pytest.fail(f"Invalid JSONL line in {path}: {exc}")
+                if isinstance(obj, dict):
+                    records.append(obj)
+        return records
+    with open(path, "r", encoding="utf-8") as f:
+        data = __import__("json").load(f)
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+        return data["data"]
+    pytest.fail(f"Unsupported JSON structure in {path}; expected list or {'data': [...]} object")
+    return []
+
+
 def _load_dataset() -> List[Dict[str, Any]]:
-    # Built-in tiny synthetic dataset; no env required
-    return [
-        {
-            "input": "Summarize the order and shipment details.",
-            "context": (
-                "Alice Johnson placed order 12345 on 2024-07-01. "
-                "Shipment to NYC expected in 3-5 days. Payment captured."
-            ),
-        },
-        {
-            "input": "Provide a concise report.",
-            "context": (
-                "Meeting discussed budget of $12,500 approved on 2024-06-30; next steps: hire PM; "
-                "deadline in 2 weeks."
-            ),
-        },
-    ]
+    env_path = os.environ.get("EVAL_FILE_SUMMARY") or os.environ.get("EVAL_DATA_FILE")
+    if env_path:
+        p = Path(env_path)
+        print(f"Loading summary dataset from file: {p}")
+        return _read_json_or_jsonl(p)
 
+    if os.environ.get("EVAL_HF_DATASET") or os.environ.get("EVAL_CONFIDENT_DATASET"):
+        pytest.fail(
+            "HuggingFace / ConfidentAI dataset sources are not yet wired for this test. "
+            "Please pass a local dataset with --json-file or --json-file-summary."
+        )
 
- 
+    pytest.fail(
+        "No dataset provided. Pass one of: --json-file, --json-file-summary, or per-task overrides."
+    )
+    return []
 
 
 @pytest.mark.llm_judge
-def test_summarize_deepeval_llm_judge_realtime():
+def test_summarize_deepeval_llm_judge_realtime(deepeval_judge_model):
     # Only run when an external judge is available and assert_test exists
     if assert_test is None:
         pytest.skip("DeepEval assert_test not available")
@@ -61,7 +84,7 @@ def test_summarize_deepeval_llm_judge_realtime():
 
     dataset = _load_dataset()
     # Limit dataset size for cost: default 1 item (≈ keeps total evals small)
-    max_items_str = os.environ.get("DEEPEVAL_JUDGE_ITEMS", "1")
+    max_items_str = os.environ.get("DEEPEVAL_JUDGE_ITEMS", "5")
     try:
         max_items = max(1, int(max_items_str))
     except Exception:
@@ -92,10 +115,8 @@ def test_summarize_deepeval_llm_judge_realtime():
             "extractive",
             "ensemble",
         ]
-    judge_model = GeminiModel(
-        model_name="gemini-2.5-flash",
-        api_key=os.environ.get("GEMINI_API_KEY"),
-    )
+    # Use shared session-scoped judge model
+    judge_model = deepeval_judge_model
 
     # Build GEval metrics for LLM-as-judge
     faithfulness = GEval(
