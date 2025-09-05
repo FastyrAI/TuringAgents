@@ -57,6 +57,14 @@ def _load_context_dataset() -> List[Dict[str, Any]]:
     env_path = os.environ.get("EVAL_FILE_CONTEXT") or os.environ.get("EVAL_DATA_FILE")
     if env_path:
         p = Path(env_path)
+        # If path doesn't exist, try relative to current working directory (evaluations folder)
+        if not p.exists() and not p.is_absolute():
+            # Remove the 'services/evaluations/' prefix since we're now in evaluations directory
+            relative_path = str(p)
+            if relative_path.startswith("services/evaluations/"):
+                relative_path = relative_path[len("services/evaluations/"):]
+                p = Path(relative_path)
+        
         print(f"Loading context dataset from file: {p}")
         return _read_json_or_jsonl(p)
 

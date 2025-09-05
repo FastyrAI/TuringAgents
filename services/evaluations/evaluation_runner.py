@@ -109,10 +109,13 @@ def main(argv: List[str] | None = None) -> int:
         print(f"pytest is required: {exc}")
         return 2
 
-    # Ensure history dir exists for HTML outputs
+    # Ensure history dir exists for HTML outputs and DeepEval cache
     history_dir = _project_root() / "services" / "evaluations" / "history"
     try:
         history_dir.mkdir(parents=True, exist_ok=True)
+        # Configure DeepEval exactly like VocalAi project
+        os.environ.setdefault("DEEPEVAL_DISABLE_LOGGING", "true")  # Disable telemetry logging to Confident AI
+        # Note: Don't disable local caching - let DeepEval create cache files
     except Exception:
         pass
 
@@ -120,23 +123,8 @@ def main(argv: List[str] | None = None) -> int:
     pytest_args.extend(test_paths)
     pytest_args.extend(["-m", "llm_judge"])  # only DeepEval-marked tests
     pytest_args.extend(["-o", "markers=llm_judge: DeepEval LLM-as-judge tests only"])  # avoid warnings
-    # If user didn't request HTML report, prefer console visibility
-    from datetime import datetime
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    html_out = None
-    if args.report:
-        try:
-            __import__("pytest_html")
-            base = Path(args.report).stem
-            html_out = str(history_dir / f"{base}_{ts}.html")
-            pytest_args.append(f"--html={html_out}")
-            pytest_args.append("--self-contained-html")
-            pytest_args.append("--capture=tee-sys")  # include stdout in HTML
-        except Exception:
-            print("pytest-html not installed; skipping HTML report")
-            pytest_args.append("-s")
-    else:
-        pytest_args.append("-s")
+    # No timestamped HTML reports - only console output
+    pytest_args.append("-s")  # Live console output
     pytest_args.append("-v" if args.verbose else "-q")
 
     if args.json_report:
@@ -148,9 +136,20 @@ def main(argv: List[str] | None = None) -> int:
             print("pytest-json-report not installed; skipping JSON report")
 
     print("Running DeepEval tests:", " ".join(pytest_args))
-    if html_out:
-        print(f"HTML report: {html_out}")
-    return int(pytest.main(pytest_args))
+    print("📊 Results will be available in the persistent dashboard")
+    
+    # CRITICAL: Run from evaluations directory exactly like VocalAi
+    original_cwd = os.getcwd()
+    evaluations_dir = _project_root() / "services" / "evaluations"
+    
+    try:
+        os.chdir(evaluations_dir)
+        print(f"🔄 Changed working directory to: {evaluations_dir}")
+        print(f"📁 DeepEval cache will be created in: {evaluations_dir}/.deepeval/")
+        return int(pytest.main(pytest_args))
+    finally:
+        # Always restore original working directory
+        os.chdir(original_cwd)
 
 
 if __name__ == "__main__":  # pragma: no cover
