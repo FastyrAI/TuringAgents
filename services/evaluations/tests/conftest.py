@@ -15,21 +15,18 @@ if str(REPO_ROOT) not in sys.path:
 from dotenv import load_dotenv
 load_dotenv()
 
-# Configure DeepEval exactly like VocalAi project - critical for caching
-os.environ["DEEPEVAL_DISABLE_LOGGING"] = "true"  # Disable Confident AI logging (matches VocalAi)
-# Note: Don't set DEEPEVAL_CACHE - let DeepEval use its defaults
+os.environ["DEEPEVAL_DISABLE_LOGGING"] = "true"
 
 try:
-    import pytest  # type: ignore
-    # Import DeepEval to initialize it properly
+    import pytest
     import deepeval
-except Exception:  # pragma: no cover
-    pytest = None  # type: ignore
-    deepeval = None  # type: ignore
+except Exception:
+    pytest = None
+    deepeval = None
 
-# History persistence configuration - exactly like VocalAi (absolute paths)
-DEEPEVAL_CACHE_FILE = "/Users/mac/Documents/project/TuringAgents/services/evaluations/.deepeval/.deepeval-cache.json"
-DEEPEVAL_HISTORY_PATH = "/Users/mac/Documents/project/TuringAgents/services/evaluations/.deepeval/.deepeval-history.json"
+# History persistence configuration - cross-environment compatible
+DEEPEVAL_CACHE_FILE = str(REPO_ROOT / "services" / "evaluations" / ".deepeval" / ".deepeval-cache.json")
+DEEPEVAL_HISTORY_PATH = str(REPO_ROOT / "services" / "evaluations" / ".deepeval" / ".deepeval-history.json")
 
 
 def _read_existing_list():
@@ -116,26 +113,26 @@ def pytest_sessionfinish(session, exitstatus):
     cache_data = _read_cache()
     if cache_data:
         _append_to_list(cache_data)
-        print(f"✅ Appended evaluation results to history: {len(cache_data.get('test_cases_lookup_map', {}))} test cases")
+        print(f"Appended evaluation results to history: {len(cache_data.get('test_cases_lookup_map', {}))} test cases")
     else:
-        print("❌ No DeepEval cache data found")
+        print("No DeepEval cache data found")
 
 def _make_gemini_model(model_name: str):
-    from deepeval.models import GeminiModel  # type: ignore
+    from deepeval.models import GeminiModel
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY not set")
     return GeminiModel(model_name=model_name, api_key=key)
 
-def _make_openai_model(model_name: str):  # pragma: no cover - optional
-    from deepeval.models import OpenAIModel  # type: ignore
+def _make_openai_model(model_name: str):
+    from deepeval.models import OpenAIModel
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
         raise RuntimeError("OPENAI_API_KEY not set")
     return OpenAIModel(api_key=key, model=model_name)
 
-def _make_anthropic_model(model_name: str):  # pragma: no cover - optional
-    from deepeval.models import AnthropicModel  # type: ignore
+def _make_anthropic_model(model_name: str):
+    from deepeval.models import AnthropicModel
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
