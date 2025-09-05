@@ -1,0 +1,68 @@
+# Pydantic schemas for request/response validation
+from .user import (
+    UserBase,
+    UserCreate,
+    UserUpdate,
+    UserInDB,
+    UserResponse,
+    UserListResponse,
+)
+from .auth import (
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    AuthResponse,
+    PasswordChangeRequest,
+    PasswordResetRequest,
+    PasswordResetConfirm,
+)
+from .composio import (
+    ToolInfo,
+    ToolDiscoveryResponse,
+    NaturalLanguageRequest,
+    ToolExecutionRequest,
+    ToolExecutionResponse,
+    AccountConnectionRequest,
+    AccountConnectionResponse,
+    ErrorResponse,
+)
+from .openai_key import (
+    OpenAIKeyCreate,
+    OpenAIKeyUpdate,
+    OpenAIKeyResponse,
+    OpenAIKeyWithDecrypted,
+    OpenAIKeyStatusResponse,
+    OpenAIKeyValidationResponse,
+    OpenAIKeyErrorResponse,
+)
+
+__all__ = [
+    "UserBase",
+    "UserCreate",
+    "UserUpdate",
+    "UserInDB",
+    "UserResponse",
+    "UserListResponse",
+    "LoginRequest",
+    "RegisterRequest",
+    "TokenResponse",
+    "AuthResponse",
+    "PasswordChangeRequest",
+    "PasswordResetRequest",
+    "PasswordResetConfirm",
+    "ToolInfo",
+    "ToolDiscoveryResponse",
+    "NaturalLanguageRequest",
+    "ToolExecutionRequest",
+    "ToolExecutionResponse",
+    "AccountConnectionRequest",
+    "AccountConnectionResponse",
+    "ErrorResponse",
+    "OpenAIKeyCreate",
+    "OpenAIKeyUpdate",
+    "OpenAIKeyResponse",
+    "OpenAIKeyWithDecrypted",
+    "OpenAIKeyStatusResponse",
+    "OpenAIKeyValidationResponse",
+    "OpenAIKeyErrorResponse",
+]
