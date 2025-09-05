@@ -1,0 +1,10 @@
+[
+    {
+      "input": "Summarize the order and shipment details.",
+      "context": "Alice Johnson placed order 12345 on 2024-07-01. Shipment to NYC expected in 3-5 days. Payment captured."
+    },
+    {
+      "input": "Provide a concise report.",
+      "context": "Meeting discussed budget of $12,500 approved on 2024-06-30; next steps: hire PM; deadline in 2 weeks."
+    }
+  ]

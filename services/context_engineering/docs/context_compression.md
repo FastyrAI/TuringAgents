@@ -1,4 +1,4 @@
-# Context Engineering – Architecture Decision Record (ADR)
+# Context Compression – Architecture Decision Record (ADR)
 
 **Project:** AI Agent OS Framework
 **Component:** Context Management (Graph Memory + Summarization Utility + Multi-LLM Router)
